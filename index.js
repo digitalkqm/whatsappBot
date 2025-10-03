@@ -10,6 +10,9 @@ const WebSocket = require('ws');
 const WorkflowEngine = require('./workflows/engine');
 const interestRateWorkflow = require('./workflows/interestRate');
 const valuationWorkflow = require('./workflows/valuation');
+const WorkflowAPI = require('./api/workflowAPI');
+const TemplateAPI = require('./api/templateAPI');
+const ContactAPI = require('./api/contactAPI');
 
 // --- Config ---
 const PORT = process.env.PORT || 3000;
@@ -334,6 +337,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const workflowEngine = new WorkflowEngine(SUPABASE_URL, SUPABASE_ANON_KEY);
 workflowEngine.registerWorkflow('interest_rate', interestRateWorkflow);
 workflowEngine.registerWorkflow('valuation', valuationWorkflow);
+
+// Initialize API handlers
+const workflowAPI = new WorkflowAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
+const templateAPI = new TemplateAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
+const contactAPI = new ContactAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const log = (level, message, ...args) => {
   const timestamp = new Date().toISOString();
@@ -1434,6 +1442,174 @@ app.get('/human-status', (req, res) => {
     status: humanBehavior.getStatus(),
     config: HUMAN_CONFIG
   });
+});
+
+// ============================================
+// WORKFLOW BUILDER API ENDPOINTS
+// ============================================
+
+// Workflow Management
+app.post('/api/workflows/create', async (req, res) => {
+  const result = await workflowAPI.createWorkflow(req.body);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.get('/api/workflows/list', async (req, res) => {
+  const filters = {
+    is_active: req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined,
+    trigger_type: req.query.trigger_type
+  };
+  const result = await workflowAPI.getWorkflows(filters);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/workflows/:id', async (req, res) => {
+  const result = await workflowAPI.getWorkflow(req.params.id);
+  res.status(result.success ? 200 : 404).json(result);
+});
+
+app.put('/api/workflows/:id/update', async (req, res) => {
+  const result = await workflowAPI.updateWorkflow(req.params.id, req.body);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.delete('/api/workflows/:id/delete', async (req, res) => {
+  const result = await workflowAPI.deleteWorkflow(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/workflows/:id/toggle', async (req, res) => {
+  const { is_active } = req.body;
+  const result = await workflowAPI.toggleWorkflow(req.params.id, is_active);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/workflows/:id/duplicate', async (req, res) => {
+  const { new_name } = req.body;
+  const result = await workflowAPI.duplicateWorkflow(req.params.id, new_name);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.get('/api/workflows/:id/executions', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const result = await workflowAPI.getExecutionHistory(req.params.id, limit);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+// Template Management
+app.post('/api/templates/create', async (req, res) => {
+  const result = await templateAPI.createTemplate(req.body);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.get('/api/templates/list', async (req, res) => {
+  const filters = {
+    category: req.query.category,
+    search: req.query.search
+  };
+  const result = await templateAPI.getTemplates(filters);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/templates/:id', async (req, res) => {
+  const result = await templateAPI.getTemplate(req.params.id);
+  res.status(result.success ? 200 : 404).json(result);
+});
+
+app.put('/api/templates/:id/update', async (req, res) => {
+  const result = await templateAPI.updateTemplate(req.params.id, req.body);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.delete('/api/templates/:id/delete', async (req, res) => {
+  const result = await templateAPI.deleteTemplate(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/templates/:id/duplicate', async (req, res) => {
+  const { new_name } = req.body;
+  const result = await templateAPI.duplicateTemplate(req.params.id, new_name);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.get('/api/templates/categories', async (req, res) => {
+  const result = await templateAPI.getCategories();
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/templates/:id/preview', async (req, res) => {
+  const result = await templateAPI.previewTemplate(req.params.id, req.body.sample_data || {});
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/templates/validate', async (req, res) => {
+  const result = templateAPI.validateTemplate(req.body);
+  res.status(200).json(result);
+});
+
+// Contact List Management
+app.post('/api/contacts/create', async (req, res) => {
+  const result = await contactAPI.createContactList(req.body);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.get('/api/contacts/list', async (req, res) => {
+  const filters = {
+    source: req.query.source,
+    search: req.query.search,
+    tag: req.query.tag
+  };
+  const result = await contactAPI.getContactLists(filters);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/contacts/:id', async (req, res) => {
+  const result = await contactAPI.getContactList(req.params.id);
+  res.status(result.success ? 200 : 404).json(result);
+});
+
+app.put('/api/contacts/:id/update', async (req, res) => {
+  const result = await contactAPI.updateContactList(req.params.id, req.body);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.delete('/api/contacts/:id/delete', async (req, res) => {
+  const result = await contactAPI.deleteContactList(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/contacts/:id/add', async (req, res) => {
+  const { contacts } = req.body;
+  const result = await contactAPI.addContacts(req.params.id, contacts);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/contacts/:id/remove', async (req, res) => {
+  const { phones } = req.body;
+  const result = await contactAPI.removeContacts(req.params.id, phones);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/contacts/import/csv', async (req, res) => {
+  const { csv_data, list_name, mapping } = req.body;
+  const result = await contactAPI.importFromCSV(csv_data, list_name, mapping);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.post('/api/contacts/sync/google-sheets', async (req, res) => {
+  const { list_id, spreadsheet_id, sheet_name, range } = req.body;
+  const result = await contactAPI.syncFromGoogleSheets(list_id, spreadsheet_id, sheet_name, range);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/contacts/groups/whatsapp', async (req, res) => {
+  const result = await contactAPI.getWhatsAppGroups(client);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/contacts/:id/statistics', async (req, res) => {
+  const result = await contactAPI.getStatistics(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
 });
 
 // Health check endpoint

@@ -32,6 +32,24 @@ header h1 {
   color: #333;
 }
 
+.nav-link {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: #f8f9fa;
+  color: #495057;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.nav-link:hover {
+  background: #667eea;
+  color: white;
+  transform: translateY(-2px);
+}
+
 .status-badge {
   display: flex;
   align-items: center;
