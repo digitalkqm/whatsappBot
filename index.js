@@ -463,6 +463,10 @@ class SupabaseStore {
   // Required by RemoteAuth interface
   async sessionExists({ session }) {
     try {
+      // IMPORTANT: Always return false to prevent RemoteAuth from trying to extract
+      // from a zip file. We'll handle session restoration in the extract() method.
+      // This prevents the "ENOENT: no such file or directory, open 'RemoteAuth-*.zip'" error
+
       const { data, error } = await this.supabase
         .from('whatsapp_sessions')
         .select('session_key')
@@ -473,10 +477,15 @@ class SupabaseStore {
         log('error', `Supabase error in sessionExists: ${error.message}`);
         return false;
       }
-      
+
       const exists = data && data.length > 0;
-      log('info', `Session exists check: ${exists} for session: ${session || this.sessionId}`);
-      return exists;
+      log('info', `Session found in Supabase: ${exists} for session: ${session || this.sessionId}`);
+
+      // Always return false to force RemoteAuth to call extract() instead of trying to read zip
+      if (exists) {
+        log('info', `Returning false to sessionExists to trigger extract() method`);
+      }
+      return false;
     } catch (err) {
       log('error', `Exception in sessionExists: ${err.message}`);
       return false;
