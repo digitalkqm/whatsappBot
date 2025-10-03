@@ -16,12 +16,6 @@ PORT=3000
 - Don't change unless necessary
 
 ```
-NODE_VERSION=18.0.0
-```
-- Ensures compatible Node.js version
-- Required for ES6+ features
-
-```
 WHATSAPP_SESSION_ID=production_session
 ```
 - Unique identifier for this bot instance
