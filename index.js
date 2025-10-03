@@ -793,27 +793,37 @@ let client = null;
 
 function createWhatsAppClient() {
   try {
-    // Ensure auth folder exists
-    const sessionPath = path.join(__dirname, `.wwebjs_auth/session-${SESSION_ID}`);
-    const parentDir = path.dirname(sessionPath);
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true });
-      log('info', `📁 Created session directory: ${parentDir}`);
+    // Ensure auth folder exists with proper structure
+    const authDir = path.join(__dirname, '.wwebjs_auth');
+    const sessionPath = path.join(authDir, `session-${SESSION_ID}`);
+
+    // Create directories if they don't exist
+    if (!fs.existsSync(authDir)) {
+      fs.mkdirSync(authDir, { recursive: true });
+      log('info', `📁 Created auth directory: ${authDir}`);
     }
-    
+
+    if (!fs.existsSync(sessionPath)) {
+      fs.mkdirSync(sessionPath, { recursive: true });
+      log('info', `📁 Created session directory: ${sessionPath}`);
+    }
+
     // Add .gitkeep to ensure folder is tracked
-    const gitkeepPath = path.join(parentDir, '.gitkeep');
+    const gitkeepPath = path.join(authDir, '.gitkeep');
     if (!fs.existsSync(gitkeepPath)) {
       fs.writeFileSync(gitkeepPath, '');
-      log('info', 'Added .gitkeep to session directory');
+      log('info', 'Added .gitkeep to auth directory');
     }
+
+    log('info', `Using auth directory: ${authDir}`);
+    log('info', `Using session path: ${sessionPath}`);
 
     return new Client({
       authStrategy: new RemoteAuth({
         clientId: SESSION_ID,
         store: supabaseStore,
         backupSyncIntervalMs: 300000,
-        dataPath: sessionPath,
+        dataPath: authDir, // Use parent directory, not session-specific path
       }),
       puppeteer: {
         headless: true,
@@ -845,6 +855,14 @@ function setupClientEvents(c) {
   if (c.authStrategy && c.authStrategy.store) {
     c.authStrategy.store.client = c;
   }
+
+  // Add error handler to prevent unhandled errors
+  c.on('error', (error) => {
+    log('error', `Client error: ${error.message}`);
+    if (error.stack) {
+      log('debug', `Stack trace: ${error.stack}`);
+    }
+  });
 
   c.on('qr', async qr => {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}`;
