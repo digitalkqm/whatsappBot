@@ -743,16 +743,18 @@ async function safelyTriggerSessionSave(client) {
           return false;
         }
       }
-      
-      // Save using auth strategy
-      if (client.authStrategy && typeof client.authStrategy.save === 'function') {
+
+      // Save directly to Supabase store
+      if (supabaseStore && typeof supabaseStore.save === 'function') {
         // Make sure client reference is set
-        if (client.authStrategy.store) {
-          client.authStrategy.store.client = client;
-        }
-        
-        await client.authStrategy.save({ sessionData });
-        log('info', '📥 Session save triggered with valid data');
+        supabaseStore.client = client;
+
+        // Save to Supabase
+        await supabaseStore.save({
+          session: `RemoteAuth-${SESSION_ID}`,
+          sessionData
+        });
+        log('info', '📥 Session saved to Supabase successfully');
 
         // Extra: Create a backup copy of session data directly to file system
         try {
@@ -760,7 +762,7 @@ async function safelyTriggerSessionSave(client) {
           if (!fs.existsSync(sessionDir)) {
             fs.mkdirSync(sessionDir, { recursive: true });
           }
-          
+
           const backupFile = path.join(sessionDir, 'session_backup.json');
           await fs.promises.writeFile(
             backupFile,
@@ -773,7 +775,7 @@ async function safelyTriggerSessionSave(client) {
         }
         return true;
       } else {
-        log('warn', 'No save method available on auth strategy');
+        log('warn', 'No save method available on Supabase store');
         return false;
       }
     } else {
