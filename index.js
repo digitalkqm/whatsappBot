@@ -2,9 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const { Client, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const express = require('express');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
+const WebSocket = require('ws');
+const WorkflowEngine = require('./workflows/engine');
+const interestRateWorkflow = require('./workflows/interestRate');
+const valuationWorkflow = require('./workflows/valuation');
 
 // --- Config ---
 const PORT = process.env.PORT || 3000;
@@ -285,39 +290,52 @@ class HumanBehaviorManager {
     }
   }
 
-  // Send webhooks with human-like timing
+  // Process workflows (replaces n8n webhooks)
   async sendWebhooks(payload) {
-    const webhooks = [];
-    
-    if (payload.messageType === 'valuation' && VALUATION_WEBHOOK_URL) {
-      webhooks.push({ url: VALUATION_WEBHOOK_URL, type: 'valuation' });
-    }
-    
-    if (payload.messageType === 'interest_rate' && INTEREST_RATE_WEBHOOK_URL) {
-      webhooks.push({ url: INTEREST_RATE_WEBHOOK_URL, type: 'interest_rate' });
-    }
-
-    // Handle bank rates update messages
-    if (payload.messageType === 'bank_rates_update' && UPDATE_RATE_WEBHOOK_URL) {
-      webhooks.push({ url: UPDATE_RATE_WEBHOOK_URL, type: 'bank_rates_update' });
-      log('info', '🏦 Processing bank rates update request for specific n8n workflow');
-    }
-
-    // Send to main N8N webhook (this will receive all message types)
-    if (N8N_WEBHOOK_URL) {
-      webhooks.push({ url: N8N_WEBHOOK_URL, type: 'main' });
-    }
-
-    // Send webhooks with delays between them
-    for (let i = 0; i < webhooks.length; i++) {
-      const webhook = webhooks[i];
-      await sendToWebhook(webhook.url, payload, webhook.type);
-      
-      // Add delay between webhook calls (except for the last one)
-      if (i < webhooks.length - 1) {
-        const delay = this.getRandomDelay(500, 2000);
-        await this.sleep(delay);
+    // Execute native workflows instead of calling n8n
+    try {
+      if (payload.messageType === 'valuation') {
+        log('info', '📊 Executing valuation workflow');
+        await workflowEngine.executeWorkflow('valuation', payload);
       }
+
+      if (payload.messageType === 'interest_rate' || payload.messageType === 'bank_rates_update') {
+        log('info', '💰 Executing interest rate workflow');
+        await workflowEngine.executeWorkflow('interest_rate', payload);
+      }
+
+      // Fallback: Send to n8n webhooks if still configured (for gradual migration)
+      const webhooks = [];
+
+      if (payload.messageType === 'valuation' && VALUATION_WEBHOOK_URL) {
+        webhooks.push({ url: VALUATION_WEBHOOK_URL, type: 'valuation' });
+      }
+
+      if (payload.messageType === 'interest_rate' && INTEREST_RATE_WEBHOOK_URL) {
+        webhooks.push({ url: INTEREST_RATE_WEBHOOK_URL, type: 'interest_rate' });
+      }
+
+      if (payload.messageType === 'bank_rates_update' && UPDATE_RATE_WEBHOOK_URL) {
+        webhooks.push({ url: UPDATE_RATE_WEBHOOK_URL, type: 'bank_rates_update' });
+      }
+
+      if (N8N_WEBHOOK_URL) {
+        webhooks.push({ url: N8N_WEBHOOK_URL, type: 'main' });
+      }
+
+      // Send webhooks with delays between them (if any configured)
+      for (let i = 0; i < webhooks.length; i++) {
+        const webhook = webhooks[i];
+        await sendToWebhook(webhook.url, payload, webhook.type);
+
+        if (i < webhooks.length - 1) {
+          const delay = this.getRandomDelay(500, 2000);
+          await this.sleep(delay);
+        }
+      }
+    } catch (error) {
+      log('error', `Workflow execution failed: ${error.message}`);
+      throw error;
     }
   }
 
@@ -355,11 +373,19 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Initialize Workflow Engine
+const workflowEngine = new WorkflowEngine(SUPABASE_URL, SUPABASE_ANON_KEY);
+workflowEngine.registerWorkflow('interest_rate', interestRateWorkflow);
+workflowEngine.registerWorkflow('valuation', valuationWorkflow);
+
 const log = (level, message, ...args) => {
   const timestamp = new Date().toISOString();
   const formatted = `[${timestamp}] [${level.toUpperCase()}] [${SESSION_ID}] ${message}`;
   console[level](formatted, ...args);
 };
+
+// Global QR code storage for dashboard
+let currentQRCode = null;
 
 // --- Enhanced Session Data Extraction ---
 async function extractSessionData(client) {
@@ -834,13 +860,25 @@ function setupClientEvents(c) {
     c.authStrategy.store.client = c;
   }
 
-  c.on('qr', qr => {
+  c.on('qr', async qr => {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}`;
     log('warn', `📱 Scan QR Code: ${qrUrl}`);
+
+    // Generate QR code as data URL for dashboard
+    try {
+      currentQRCode = await QRCode.toDataURL(qr);
+      log('info', '📱 QR Code generated for dashboard');
+
+      // Broadcast to all WebSocket clients
+      broadcastToClients({ type: 'qr', qr: currentQRCode });
+    } catch (err) {
+      log('error', `Failed to generate QR code: ${err.message}`);
+    }
   });
 
   c.on('ready', async () => {
     log('info', '✅ WhatsApp client is ready.');
+    currentQRCode = null; // Clear QR code when authenticated
     
     // Trigger session save after client is ready with human-like delay
     const delay = humanBehavior.getRandomDelay(3000, 8000);
@@ -1115,6 +1153,9 @@ async function startClient() {
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Graceful shutdown handling
 const gracefulShutdown = async (signal) => {
   log('warn', `Received ${signal}. Shutting down gracefully...`);
@@ -1147,8 +1188,25 @@ process.on('unhandledRejection', (reason, promise) => {
   log('error', 'Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+// WebSocket clients storage
+const wsClients = new Set();
+
+// Broadcast function for WebSocket clients
+function broadcastToClients(data) {
+  const message = JSON.stringify(data);
+  wsClients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+
 // Routes
 app.get('/', (_, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/api/status', (_, res) => {
   res.status(200).json({
     status: '✅ Bot running',
     sessionId: SESSION_ID,
@@ -1156,6 +1214,34 @@ app.get('/', (_, res) => {
     uptimeMinutes: Math.floor((Date.now() - startedAt) / 60000),
     humanBehavior: humanBehavior.getStatus(),
     timestamp: new Date().toISOString(),
+  });
+});
+
+// QR Code endpoint
+app.get('/qr-code', async (_, res) => {
+  try {
+    if (currentQRCode) {
+      res.status(200).json({ qr: currentQRCode, authenticated: false });
+    } else if (client) {
+      const state = await client.getState();
+      if (state === 'CONNECTED') {
+        res.status(200).json({ qr: null, authenticated: true, state });
+      } else {
+        res.status(200).json({ qr: null, authenticated: false, state, message: 'Waiting for QR code...' });
+      }
+    } else {
+      res.status(200).json({ qr: null, authenticated: false, message: 'Client not initialized' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Workflows endpoint
+app.get('/workflows', (_, res) => {
+  res.status(200).json({
+    active: workflowEngine.getActiveWorkflows(),
+    registered: Array.from(workflowEngine.workflowHandlers.keys())
   });
 });
 
@@ -1435,13 +1521,43 @@ app.get('/ping', (_, res) => {
 // Start server
 const server = app.listen(PORT, () => {
   log('info', `🚀 Server started on http://localhost:${PORT}`);
+  log('info', `📱 Dashboard: http://localhost:${PORT}`);
   log('info', `🤖 Bot Version: ${BOT_VERSION}`);
   log('info', `🧠 Human behavior enabled with smart timing and rate limiting`);
   log('info', '💻 Starting WhatsApp client in 5 seconds...');
-  
+
   // Add random delay before starting client
   const startDelay = humanBehavior.getRandomDelay(3000, 8000);
   setTimeout(startClient, startDelay);
+});
+
+// WebSocket server for real-time updates
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws) => {
+  log('info', '📡 New WebSocket client connected');
+  wsClients.add(ws);
+
+  // Send initial status
+  ws.send(JSON.stringify({
+    type: 'connected',
+    message: 'WebSocket connected to WhatsApp Bot'
+  }));
+
+  // Send current QR code if available
+  if (currentQRCode) {
+    ws.send(JSON.stringify({ type: 'qr', qr: currentQRCode }));
+  }
+
+  ws.on('close', () => {
+    log('info', '📡 WebSocket client disconnected');
+    wsClients.delete(ws);
+  });
+
+  ws.on('error', (error) => {
+    log('error', `WebSocket error: ${error.message}`);
+    wsClients.delete(ws);
+  });
 });
 
 // Enhanced Watchdog with human behavior consideration

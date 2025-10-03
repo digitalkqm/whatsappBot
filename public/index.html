@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Bot Dashboard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 WhatsApp Bot Dashboard</h1>
+      <div class="status-badge" id="connectionStatus">
+        <span class="status-dot"></span>
+        <span class="status-text">Checking...</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- QR Code Section -->
+      <section class="card" id="qrSection">
+        <h2>📱 QR Code Authentication</h2>
+
+        <div id="qrCodeContainer" class="qr-container">
+          <div class="qr-placeholder" id="qrPlaceholder">
+            <p>Waiting for QR code...</p>
+          </div>
+          <img id="qrCodeImage" class="qr-image" style="display: none;" alt="WhatsApp QR Code">
+        </div>
+
+        <div class="qr-instructions">
+          <h3>How to connect:</h3>
+          <ol>
+            <li>Open WhatsApp on your phone</li>
+            <li>Tap <strong>Menu</strong> or <strong>Settings</strong></li>
+            <li>Tap <strong>Linked Devices</strong></li>
+            <li>Tap <strong>Link a Device</strong></li>
+            <li>Scan this QR code with your phone</li>
+          </ol>
+        </div>
+
+        <div class="qr-actions">
+          <button id="refreshQR" class="btn btn-secondary">🔄 Refresh QR Code</button>
+          <button id="logoutBtn" class="btn btn-danger">🚪 Logout</button>
+        </div>
+      </section>
+
+      <!-- Status Section -->
+      <section class="card">
+        <h2>📊 Bot Status</h2>
+
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="label">WhatsApp Status:</span>
+            <span class="value" id="whatsappState">Loading...</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Uptime:</span>
+            <span class="value" id="uptime">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Messages (Hourly):</span>
+            <span class="value" id="messagesHourly">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Messages (Daily):</span>
+            <span class="value" id="messagesDaily">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Active Hours:</span>
+            <span class="value" id="activeHours">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">On Break:</span>
+            <span class="value" id="onBreak">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Workflows Section -->
+      <section class="card">
+        <h2>⚙️ Active Workflows</h2>
+
+        <div id="workflowsContainer" class="workflows-list">
+          <p class="empty-state">No active workflows</p>
+        </div>
+      </section>
+
+      <!-- Controls Section -->
+      <section class="card">
+        <h2>🎛️ Controls</h2>
+
+        <div class="controls-grid">
+          <button id="toggleBreak" class="btn btn-primary">😴 Toggle Break Mode</button>
+          <button id="saveSession" class="btn btn-primary">💾 Save Session</button>
+          <button id="clearSession" class="btn btn-danger">🗑️ Clear Session</button>
+          <button id="restartBot" class="btn btn-warning">🔄 Restart Bot</button>
+        </div>
+      </section>
+
+      <!-- System Info -->
+      <section class="card">
+        <h2>💻 System Information</h2>
+
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="label">Memory (RSS):</span>
+            <span class="value" id="memoryRss">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Memory (Heap):</span>
+            <span class="value" id="memoryHeap">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Node Version:</span>
+            <span class="value" id="nodeVersion">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Bot Version:</span>
+            <span class="value" id="botVersion">--</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>WhatsApp Bot Dashboard v1.0 | Last updated: <span id="lastUpdate">--</span></p>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
