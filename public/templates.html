@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Template Manager - Create and manage WhatsApp message templates">
+  <meta name="theme-color" content="#00a884">
   <title>Template Manager - WhatsApp Bot</title>
   <link rel="stylesheet" href="/styles.css">
   <style>
@@ -282,10 +284,15 @@
 </head>
 <body>
   <div class="container">
-    <header>
+    <header role="banner">
       <h1>📝 Template Manager</h1>
-      <div style="display: flex; gap: 1rem;">
-        <a href="/" class="btn btn-secondary">← Dashboard</a>
+      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <nav role="navigation" aria-label="Main navigation" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <a href="/" class="nav-link" aria-label="Dashboard">🏠 Dashboard</a>
+          <a href="/valuations.html" class="nav-link" aria-label="Valuations Management">📊 Valuations</a>
+          <a href="/bankers.html" class="nav-link" aria-label="Banker Management">🏦 Bankers</a>
+          <a href="/contacts.html" class="nav-link" aria-label="Contact Management">👥 Contacts</a>
+        </nav>
         <button id="createTemplateBtn" class="btn btn-primary">+ Create Template</button>
       </div>
     </header>
@@ -386,6 +393,10 @@ Best regards"></textarea>
     </div>
   </div>
 
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="/toast.js"></script>
   <script src="/templates.js"></script>
 </body>
 </html>
