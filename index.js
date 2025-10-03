@@ -17,12 +17,6 @@ const SESSION_ID = process.env.WHATSAPP_SESSION_ID || 'default_session';
 const BOT_VERSION = '1.0.1';
 const startedAt = Date.now();
 
-// Multiple webhook URLs support
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-const INTEREST_RATE_WEBHOOK_URL = process.env.INTEREST_RATE_WEBHOOK_URL;
-const VALUATION_WEBHOOK_URL = process.env.VALUATION_WEBHOOK_URL;
-const UPDATE_RATE_WEBHOOK_URL = process.env.UPDATE_RATE_WEBHOOK_URL;
-
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
@@ -290,9 +284,8 @@ class HumanBehaviorManager {
     }
   }
 
-  // Process workflows (replaces n8n webhooks)
+  // Process workflows
   async sendWebhooks(payload) {
-    // Execute native workflows instead of calling n8n
     try {
       if (payload.messageType === 'valuation') {
         log('info', '📊 Executing valuation workflow');
@@ -302,36 +295,6 @@ class HumanBehaviorManager {
       if (payload.messageType === 'interest_rate' || payload.messageType === 'bank_rates_update') {
         log('info', '💰 Executing interest rate workflow');
         await workflowEngine.executeWorkflow('interest_rate', payload);
-      }
-
-      // Fallback: Send to n8n webhooks if still configured (for gradual migration)
-      const webhooks = [];
-
-      if (payload.messageType === 'valuation' && VALUATION_WEBHOOK_URL) {
-        webhooks.push({ url: VALUATION_WEBHOOK_URL, type: 'valuation' });
-      }
-
-      if (payload.messageType === 'interest_rate' && INTEREST_RATE_WEBHOOK_URL) {
-        webhooks.push({ url: INTEREST_RATE_WEBHOOK_URL, type: 'interest_rate' });
-      }
-
-      if (payload.messageType === 'bank_rates_update' && UPDATE_RATE_WEBHOOK_URL) {
-        webhooks.push({ url: UPDATE_RATE_WEBHOOK_URL, type: 'bank_rates_update' });
-      }
-
-      if (N8N_WEBHOOK_URL) {
-        webhooks.push({ url: N8N_WEBHOOK_URL, type: 'main' });
-      }
-
-      // Send webhooks with delays between them (if any configured)
-      for (let i = 0; i < webhooks.length; i++) {
-        const webhook = webhooks[i];
-        await sendToWebhook(webhook.url, payload, webhook.type);
-
-        if (i < webhooks.length - 1) {
-          const delay = this.getRandomDelay(500, 2000);
-          await this.sleep(delay);
-        }
       }
     } catch (error) {
       log('error', `Workflow execution failed: ${error.message}`);
@@ -359,12 +322,6 @@ class HumanBehaviorManager {
 
 // Initialize human behavior manager
 const humanBehavior = new HumanBehaviorManager();
-
-console.log('🔍 Loaded Webhook URLs:');
-console.log('- N8N_WEBHOOK_URL:', N8N_WEBHOOK_URL);
-console.log('- INTEREST_RATE_WEBHOOK_URL:', INTEREST_RATE_WEBHOOK_URL);
-console.log('- VALUATION_WEBHOOK_URL:', VALUATION_WEBHOOK_URL);
-console.log('- UPDATE_RATE_WEBHOOK_URL:', UPDATE_RATE_WEBHOOK_URL);
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error('❌ Missing Supabase credentials. Exiting.');
@@ -1083,47 +1040,6 @@ async function handleIncomingMessage(msg) {
   log('info', '📝 Message added to processing queue with human-like timing');
 }
 
-async function sendToWebhook(webhookUrl, payload, type = 'unknown', attempt = 0) {
-  if (!webhookUrl) {
-    log('warn', `${type} webhook skipped: URL not set.`);
-    return;
-  }
-
-  // Truncate long texts to prevent payload size issues
-  const processedPayload = { ...payload };
-  if (processedPayload.text?.length > 1000) {
-    processedPayload.text = processedPayload.text.slice(0, 1000) + '... [truncated]';
-  }
-  if (processedPayload.replyInfo?.text?.length > 500) {
-    processedPayload.replyInfo.text = processedPayload.replyInfo.text.slice(0, 500) + '... [truncated]';
-  }
-
-  // Estimate payload size
-  const payloadSize = Buffer.byteLength(JSON.stringify(processedPayload), 'utf8');
-  if (payloadSize > 90_000) {
-    log('warn', `🚫 ${type} payload too large (${payloadSize} bytes). Skipping webhook.`);
-    return;
-  }
-
-  try {
-    // Add human-like delay before sending webhook
-    const delay = humanBehavior.getRandomDelay(500, 2000);
-    await humanBehavior.sleep(delay);
-
-    await axios.post(webhookUrl, processedPayload, { timeout: 15000 }); // Increased timeout
-    log('info', `✅ ${type} webhook sent (${payloadSize} bytes).`);
-  } catch (err) {
-    log('error', `${type} webhook attempt ${attempt + 1} failed: ${err.message}`);
-    if (attempt < 2) { // Reduced retry attempts to 3 total
-      const backoff = Math.min(Math.pow(2, attempt) * 1000, 10000) + (Math.random() * 2000);
-      log('warn', `Will retry ${type} webhook in ${backoff/1000} seconds...`);
-      setTimeout(() => sendToWebhook(webhookUrl, processedPayload, type, attempt + 1), backoff);
-    } else {
-      log('error', `Giving up on ${type} webhook after 3 attempts`);
-    }
-  }
-}
-
 async function startClient() {
   if (client) {
     log('info', '⏳ Client already exists, skipping re-init.');
@@ -1493,12 +1409,6 @@ app.get('/health', async (_, res) => {
           heapTotal: `${(mem.heapTotal / 1024 / 1024).toFixed(1)} MB`,
         },
         nodejs: process.version,
-      },
-      webhooks: {
-        n8n: !!N8N_WEBHOOK_URL,
-        valuation: !!VALUATION_WEBHOOK_URL,
-        interest_rate: !!INTEREST_RATE_WEBHOOK_URL,
-        update_rate: !!UPDATE_RATE_WEBHOOK_URL,
       },
       timestamp: new Date().toISOString(),
     };

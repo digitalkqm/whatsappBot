@@ -74,36 +74,6 @@ VALUATION_SPREADSHEET_ID=1A2b3C4d5E6f7G8h9I0jK1lM2nO3pQ4rS5tU6vW7xY8z
 - Same process as Interest Rate spreadsheet
 - Different sheet for valuation data
 
-## 🟡 Optional Variables
-
-Only set these if you want to keep using n8n webhooks alongside native workflows.
-
-### n8n Webhook URLs
-
-```
-N8N_WEBHOOK_URL=
-```
-- Leave empty to disable
-- Or set to: `https://your-n8n.app/webhook/xxxxx`
-
-```
-INTEREST_RATE_WEBHOOK_URL=
-```
-- Leave empty to use native workflow
-- Legacy n8n webhook for interest rates
-
-```
-VALUATION_WEBHOOK_URL=
-```
-- Leave empty to use native workflow
-- Legacy n8n webhook for valuations
-
-```
-UPDATE_RATE_WEBHOOK_URL=
-```
-- Leave empty to disable
-- Legacy n8n webhook for rate updates
-
 ## 📋 How to Add on Render
 
 ### Method 1: During Service Creation
@@ -211,7 +181,6 @@ For easy copy-paste into Render:
 
 ```
 PORT=3000
-NODE_VERSION=18.0.0
 WHATSAPP_SESSION_ID=production_session
 APP_URL=https://CHANGE-THIS.onrender.com
 SUPABASE_URL=https://CHANGE-THIS.supabase.co
