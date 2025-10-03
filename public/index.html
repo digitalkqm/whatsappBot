@@ -3,37 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="WhatsApp Bot Dashboard - Monitor and manage your automated WhatsApp bot">
+  <meta name="theme-color" content="#00a884">
   <title>WhatsApp Bot Dashboard</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <div class="container">
-    <header>
+    <header role="banner">
       <h1>🤖 WhatsApp Bot Dashboard</h1>
-      <div style="display: flex; align-items: center; gap: 1rem;">
-        <nav style="display: flex; gap: 0.5rem; margin-right: 1rem;">
-          <a href="/valuations.html" class="nav-link">📊 Valuations</a>
-          <a href="/bankers.html" class="nav-link">🏦 Bankers</a>
-          <a href="/templates.html" class="nav-link">📝 Templates</a>
-          <a href="/contacts.html" class="nav-link">👥 Contacts</a>
+      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <nav role="navigation" aria-label="Main navigation" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <a href="/valuations.html" class="nav-link" aria-label="Valuations Management">📊 Valuations</a>
+          <a href="/bankers.html" class="nav-link" aria-label="Banker Management">🏦 Bankers</a>
+          <a href="/templates.html" class="nav-link" aria-label="Message Templates">📝 Templates</a>
+          <a href="/contacts.html" class="nav-link" aria-label="Contact Management">👥 Contacts</a>
         </nav>
-        <div class="status-badge" id="connectionStatus">
-          <span class="status-dot"></span>
+        <div class="status-badge" id="connectionStatus" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
           <span class="status-text">Checking...</span>
         </div>
       </div>
     </header>
 
-    <main>
+    <main role="main">
       <!-- QR Code Section -->
-      <section class="card" id="qrSection">
-        <h2>📱 QR Code Authentication</h2>
+      <section class="card" id="qrSection" aria-labelledby="qr-heading">
+        <h2 id="qr-heading">📱 QR Code Authentication</h2>
 
-        <div id="qrCodeContainer" class="qr-container">
+        <div id="qrCodeContainer" class="qr-container" role="region" aria-live="polite" aria-atomic="true">
           <div class="qr-placeholder" id="qrPlaceholder">
             <p>Waiting for QR code...</p>
           </div>
-          <img id="qrCodeImage" class="qr-image" style="display: none;" alt="WhatsApp QR Code">
+          <img id="qrCodeImage" class="qr-image" style="display: none;" alt="WhatsApp QR Code for authentication">
         </div>
 
         <div class="qr-instructions">
@@ -48,14 +50,14 @@
         </div>
 
         <div class="qr-actions">
-          <button id="refreshQR" class="btn btn-secondary">🔄 Refresh QR Code</button>
-          <button id="logoutBtn" class="btn btn-danger">🚪 Logout</button>
+          <button id="refreshQR" class="btn btn-secondary" aria-label="Refresh QR Code">🔄 Refresh QR Code</button>
+          <button id="logoutBtn" class="btn btn-danger" aria-label="Logout from WhatsApp">🚪 Logout</button>
         </div>
       </section>
 
       <!-- Status Section -->
-      <section class="card">
-        <h2>📊 Bot Status</h2>
+      <section class="card" aria-labelledby="status-heading">
+        <h2 id="status-heading">📊 Bot Status</h2>
 
         <div class="status-grid">
           <div class="status-item">
@@ -86,29 +88,29 @@
       </section>
 
       <!-- Workflows Section -->
-      <section class="card">
-        <h2>⚙️ Active Workflows</h2>
+      <section class="card" aria-labelledby="workflows-heading">
+        <h2 id="workflows-heading">⚙️ Active Workflows</h2>
 
-        <div id="workflowsContainer" class="workflows-list">
+        <div id="workflowsContainer" class="workflows-list" role="region" aria-live="polite">
           <p class="empty-state">No active workflows</p>
         </div>
       </section>
 
       <!-- Controls Section -->
-      <section class="card">
-        <h2>🎛️ Controls</h2>
+      <section class="card" aria-labelledby="controls-heading">
+        <h2 id="controls-heading">🎛️ Controls</h2>
 
         <div class="controls-grid">
-          <button id="toggleBreak" class="btn btn-primary">😴 Toggle Break Mode</button>
-          <button id="saveSession" class="btn btn-primary">💾 Save Session</button>
-          <button id="clearSession" class="btn btn-danger">🗑️ Clear Session</button>
-          <button id="restartBot" class="btn btn-warning">🔄 Restart Bot</button>
+          <button id="toggleBreak" class="btn btn-primary" aria-label="Toggle break mode on or off">😴 Toggle Break Mode</button>
+          <button id="saveSession" class="btn btn-primary" aria-label="Save current session">💾 Save Session</button>
+          <button id="clearSession" class="btn btn-danger" aria-label="Clear session data">🗑️ Clear Session</button>
+          <button id="restartBot" class="btn btn-warning" aria-label="Restart the bot">🔄 Restart Bot</button>
         </div>
       </section>
 
       <!-- System Info -->
-      <section class="card">
-        <h2>💻 System Information</h2>
+      <section class="card" aria-labelledby="system-heading">
+        <h2 id="system-heading">💻 System Information</h2>
 
         <div class="status-grid">
           <div class="status-item">
@@ -131,11 +133,15 @@
       </section>
     </main>
 
-    <footer>
-      <p>WhatsApp Bot Dashboard v1.0 | Last updated: <span id="lastUpdate">--</span></p>
+    <footer role="contentinfo">
+      <p>WhatsApp Bot Dashboard v1.0 | Last updated: <span id="lastUpdate" aria-live="polite">--</span></p>
     </footer>
   </div>
 
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="/toast.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
