@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Valuation Requests - WhatsApp Bot</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f5f7fa;
+      color: #2c3e50;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .stat-card h3 {
+      font-size: 14px;
+      color: #7f8c8d;
+      margin-bottom: 10px;
+    }
+
+    .stat-card .value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+
+    .filters {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .filter-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .filter-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+
+    .filter-group input,
+    .filter-group select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #3498db;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2980b9;
+    }
+
+    .btn-secondary {
+      background: #95a5a6;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #7f8c8d;
+    }
+
+    .btn-success {
+      background: #27ae60;
+      color: white;
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .table-container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1200px;
+    }
+
+    thead {
+      background: #34495e;
+      color: white;
+    }
+
+    th {
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #ecf0f1;
+      font-size: 13px;
+    }
+
+    tr:hover {
+      background: #f8f9fa;
+    }
+
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-forwarded {
+      background: #cce5ff;
+      color: #004085;
+    }
+
+    .status-replied_by_banker {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-completed {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+
+    .action-btn {
+      padding: 4px 8px;
+      font-size: 12px;
+      margin: 0 2px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #7f8c8d;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      margin-bottom: 20px;
+    }
+
+    .modal-header h2 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .form-group textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .nav {
+      background: #2c3e50;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .nav a {
+      color: white;
+      text-decoration: none;
+      padding: 10px 15px;
+      margin: 0 5px;
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      background: #34495e;
+    }
+
+    .pagination {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .pagination button {
+      min-width: 80px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #7f8c8d;
+    }
+
+    .empty-state h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/">Dashboard</a>
+    <a href="/valuations.html" class="active">Valuations</a>
+    <a href="/bankers.html">Bankers</a>
+    <a href="/templates.html">Templates</a>
+    <a href="/contacts.html">Contacts</a>
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <h1>📊 Valuation Requests</h1>
+      <p>Manage and track property valuation requests</p>
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat-card">
+        <h3>Total Requests</h3>
+        <div class="value" id="stat-total">0</div>
+      </div>
+      <div class="stat-card">
+        <h3>Pending</h3>
+        <div class="value" id="stat-pending">0</div>
+      </div>
+      <div class="stat-card">
+        <h3>Completed</h3>
+        <div class="value" id="stat-completed">0</div>
+      </div>
+      <div class="stat-card">
+        <h3>Completion Rate</h3>
+        <div class="value" id="stat-rate">0%</div>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="filter-group">
+        <div>
+          <label>Status</label>
+          <select id="filter-status">
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="forwarded">Forwarded</option>
+            <option value="replied_by_banker">Replied</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+        <div>
+          <label>Search</label>
+          <input type="text" id="filter-search" placeholder="Address or salesperson...">
+        </div>
+        <div>
+          <label>Date From</label>
+          <input type="date" id="filter-date-from">
+        </div>
+        <div>
+          <label>Date To</label>
+          <input type="date" id="filter-date-to">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" onclick="applyFilters()">Apply Filters</button>
+        <button class="btn-secondary" onclick="resetFilters()">Reset</button>
+        <button class="btn-success" onclick="exportCSV()">Export CSV</button>
+        <button class="btn-secondary" onclick="refreshData()">Refresh</button>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <div class="table-wrapper">
+        <table id="valuations-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Created</th>
+              <th>Status</th>
+              <th>Address</th>
+              <th>Size</th>
+              <th>Asking</th>
+              <th>Salesperson</th>
+              <th>Agent #</th>
+              <th>Banker</th>
+              <th>Bank</th>
+              <th>Progress</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="valuations-tbody">
+            <tr>
+              <td colspan="12" class="loading">Loading valuations...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Details Modal -->
+  <div class="modal" id="details-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Valuation Details</h2>
+      </div>
+      <div id="details-content"></div>
+      <div class="actions" style="margin-top: 20px;">
+        <button class="btn-secondary" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentData = [];
+    let currentFilters = {};
+
+    async function loadStatistics() {
+      try {
+        const params = new URLSearchParams(currentFilters);
+        const response = await fetch(`/api/valuations/statistics/summary?${params}`);
+        const result = await response.json();
+
+        if (result.success) {
+          const stats = result.data;
+          document.getElementById('stat-total').textContent = stats.total || 0;
+          document.getElementById('stat-pending').textContent = stats.by_status?.pending || 0;
+          document.getElementById('stat-completed').textContent = stats.by_status?.completed || 0;
+          document.getElementById('stat-rate').textContent = stats.completion_rate + '%';
+        }
+      } catch (error) {
+        console.error('Error loading statistics:', error);
+      }
+    }
+
+    async function loadValuations() {
+      try {
+        const params = new URLSearchParams(currentFilters);
+        const response = await fetch(`/api/valuations/list?${params}`);
+        const result = await response.json();
+
+        if (result.success) {
+          currentData = result.data;
+          renderTable(currentData);
+        } else {
+          showError('Failed to load valuations');
+        }
+      } catch (error) {
+        console.error('Error loading valuations:', error);
+        showError('Error loading valuations');
+      }
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById('valuations-tbody');
+
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="12" class="empty-state"><h3>No valuations found</h3><p>Try adjusting your filters</p></td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.map(val => {
+        const created = new Date(val.created_at).toLocaleString();
+        const statusClass = `status-${val.status.replace(/_/g, '-')}`;
+
+        // Progress indicators
+        const progress = [];
+        if (val.forwarded_to_banker) progress.push('✓ Forwarded');
+        if (val.acknowledgment_sent) progress.push('✓ Acknowledged');
+        if (val.banker_replied_at) progress.push('✓ Replied');
+        if (val.final_reply_sent) progress.push('✓ Sent to Requester');
+        if (val.agent_notified) progress.push('✓ Agent Notified');
+
+        return `
+          <tr>
+            <td><code>${val.id.substring(0, 8)}...</code></td>
+            <td>${created}</td>
+            <td><span class="status-badge ${statusClass}">${val.status}</span></td>
+            <td>${val.address || '-'}</td>
+            <td>${val.size || '-'}</td>
+            <td>${val.asking || '-'}</td>
+            <td>${val.salesperson_name || '-'}</td>
+            <td>${val.agent_number || '-'}</td>
+            <td>${val.bankers?.name || '-'}</td>
+            <td>${val.bankers?.bank_name || '-'}</td>
+            <td>${progress.join('<br>')}</td>
+            <td>
+              <button class="btn-primary action-btn" onclick="viewDetails('${val.id}')">View</button>
+              <button class="btn-danger action-btn" onclick="deleteValuation('${val.id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function viewDetails(id) {
+      try {
+        const response = await fetch(`/api/valuations/${id}`);
+        const result = await response.json();
+
+        if (result.success) {
+          const val = result.data;
+          const content = document.getElementById('details-content');
+
+          content.innerHTML = `
+            <div class="form-group">
+              <label>Status</label>
+              <input type="text" value="${val.status}" readonly>
+            </div>
+            <div class="form-group">
+              <label>Address</label>
+              <input type="text" value="${val.address || ''}" readonly>
+            </div>
+            <div class="form-group">
+              <label>Size</label>
+              <input type="text" value="${val.size || ''}" readonly>
+            </div>
+            <div class="form-group">
+              <label>Asking Price</label>
+              <input type="text" value="${val.asking || ''}" readonly>
+            </div>
+            <div class="form-group">
+              <label>Salesperson</label>
+              <input type="text" value="${val.salesperson_name || ''}" readonly>
+            </div>
+            <div class="form-group">
+              <label>Agent Number</label>
+              <input type="text" value="${val.agent_number || ''}" readonly>
+            </div>
+            <div class="form-group">
+              <label>Banker</label>
+              <input type="text" value="${val.bankers?.display_name || ''} (${val.bankers?.bank_name || ''})}" readonly>
+            </div>
+            ${val.banker_reply_text ? `
+              <div class="form-group">
+                <label>Banker Reply</label>
+                <textarea readonly>${val.banker_reply_text}</textarea>
+              </div>
+            ` : ''}
+            <div class="form-group">
+              <label>Created At</label>
+              <input type="text" value="${new Date(val.created_at).toLocaleString()}" readonly>
+            </div>
+            ${val.completed_at ? `
+              <div class="form-group">
+                <label>Completed At</label>
+                <input type="text" value="${new Date(val.completed_at).toLocaleString()}" readonly>
+              </div>
+            ` : ''}
+          `;
+
+          document.getElementById('details-modal').classList.add('active');
+        }
+      } catch (error) {
+        console.error('Error loading details:', error);
+        alert('Error loading details');
+      }
+    }
+
+    async function deleteValuation(id) {
+      if (!confirm('Are you sure you want to delete this valuation?')) return;
+
+      try {
+        const response = await fetch(`/api/valuations/${id}/delete`, { method: 'DELETE' });
+        const result = await response.json();
+
+        if (result.success) {
+          alert('Valuation deleted successfully');
+          refreshData();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Error deleting valuation:', error);
+        alert('Error deleting valuation');
+      }
+    }
+
+    function applyFilters() {
+      currentFilters = {
+        status: document.getElementById('filter-status').value,
+        search: document.getElementById('filter-search').value,
+        date_from: document.getElementById('filter-date-from').value,
+        date_to: document.getElementById('filter-date-to').value,
+      };
+
+      // Remove empty filters
+      Object.keys(currentFilters).forEach(key => {
+        if (!currentFilters[key]) delete currentFilters[key];
+      });
+
+      refreshData();
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-search').value = '';
+      document.getElementById('filter-date-from').value = '';
+      document.getElementById('filter-date-to').value = '';
+      currentFilters = {};
+      refreshData();
+    }
+
+    async function exportCSV() {
+      try {
+        const params = new URLSearchParams(currentFilters);
+        window.location.href = `/api/valuations/export/csv?${params}`;
+      } catch (error) {
+        console.error('Error exporting CSV:', error);
+        alert('Error exporting CSV');
+      }
+    }
+
+    function refreshData() {
+      loadStatistics();
+      loadValuations();
+    }
+
+    function closeModal() {
+      document.getElementById('details-modal').classList.remove('active');
+    }
+
+    function showError(message) {
+      const tbody = document.getElementById('valuations-tbody');
+      tbody.innerHTML = `<tr><td colspan="12" class="loading" style="color: #e74c3c;">${message}</td></tr>`;
+    }
+
+    // Initialize
+    refreshData();
+
+    // Auto-refresh every 30 seconds
+    setInterval(refreshData, 30000);
+  </script>
+</body>
+</html>

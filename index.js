@@ -10,9 +10,13 @@ const WebSocket = require('ws');
 const WorkflowEngine = require('./workflows/engine');
 const interestRateWorkflow = require('./workflows/interestRate');
 const valuationWorkflow = require('./workflows/valuation');
+const { valuationRequestWorkflow } = require('./workflows/valuationRequestSupabase');
+const { valuationReplyWorkflow } = require('./workflows/valuationReplySupabase');
 const WorkflowAPI = require('./api/workflowAPI');
 const TemplateAPI = require('./api/templateAPI');
 const ContactAPI = require('./api/contactAPI');
+const ValuationAPI = require('./api/valuationAPI');
+const BankerAPI = require('./api/bankerAPI');
 
 // --- Config ---
 const PORT = process.env.PORT || 3000;
@@ -290,8 +294,18 @@ class HumanBehaviorManager {
   // Process workflows
   async sendWebhooks(payload) {
     try {
+      if (payload.messageType === 'valuation_request') {
+        log('info', '📊 Executing valuation request workflow (Supabase)');
+        await valuationRequestWorkflow(payload, workflowEngine);
+      }
+
+      if (payload.messageType === 'valuation_reply') {
+        log('info', '📨 Executing valuation reply workflow (Supabase)');
+        await valuationReplyWorkflow(payload, workflowEngine);
+      }
+
       if (payload.messageType === 'valuation') {
-        log('info', '📊 Executing valuation workflow');
+        log('info', '📊 Executing old valuation workflow');
         await workflowEngine.executeWorkflow('valuation', payload);
       }
 
@@ -336,12 +350,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Initialize Workflow Engine
 const workflowEngine = new WorkflowEngine(SUPABASE_URL, SUPABASE_ANON_KEY);
 workflowEngine.registerWorkflow('interest_rate', interestRateWorkflow);
-workflowEngine.registerWorkflow('valuation', valuationWorkflow);
+workflowEngine.registerWorkflow('valuation', valuationWorkflow); // Old workflow
+workflowEngine.registerWorkflow('valuation_request', valuationRequestWorkflow); // New Supabase workflow
+workflowEngine.registerWorkflow('valuation_reply', valuationReplyWorkflow); // New Supabase reply workflow
 
 // Initialize API handlers
 const workflowAPI = new WorkflowAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const templateAPI = new TemplateAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const contactAPI = new ContactAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
+const valuationAPI = new ValuationAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
+const bankerAPI = new BankerAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const log = (level, message, ...args) => {
   const timestamp = new Date().toISOString();
@@ -1032,43 +1050,35 @@ async function handleIncomingMessage(msg) {
   }
 
   // Check for different trigger conditions
-  const isValuationMessage = 
-    text.toLowerCase().includes('valuation request') ||
-    (hasReply && replyInfo?.text?.toLowerCase().includes('valuation request'));
+  const isValuationRequest = text.toLowerCase().includes('valuation request:');
 
-  const isInterestRateMessage = 
-    text.toLowerCase().includes('keyquest mortgage team');
+  const isValuationReply = hasReply && replyInfo?.message_id;
 
-  // NEW: Check for bank rates update trigger
-  const isBankRatesUpdateMessage = 
-    text.toLowerCase().includes('update bank rates');
+  const isInterestRateMessage = text.toLowerCase().includes('keyquest mortgage team');
+
+  const isBankRatesUpdateMessage = text.toLowerCase().includes('update bank rates');
 
   // Skip if message doesn't match any trigger conditions
-  if (!isValuationMessage && !isInterestRateMessage && !isBankRatesUpdateMessage) {
+  if (!isValuationRequest && !isValuationReply && !isInterestRateMessage && !isBankRatesUpdateMessage) {
     log('info', '🚫 Ignored message - no trigger keywords found.');
     return;
   }
 
   // Log what triggered the message processing
-  if (isValuationMessage) {
-    if (text.toLowerCase().includes('valuation request')) {
-      log('info', '📊 Valuation message detected (direct mention)');
-    } else if (hasReply && replyInfo?.text?.toLowerCase().includes('valuation request')) {
-      log('info', '📊 Valuation message detected (reply to valuation request)');
-    }
-  }
-  
-  if (isInterestRateMessage) {
-    log('info', '💰 Interest rate message detected (direct mention)');
+  if (isValuationRequest) {
+    log('info', '📊 Valuation request detected (template format)');
   }
 
-  // NEW: Log bank rates update trigger
+  if (isValuationReply) {
+    log('info', '📨 Banker reply detected (quoted message)');
+  }
+
+  if (isInterestRateMessage) {
+    log('info', '💰 Interest rate message detected');
+  }
+
   if (isBankRatesUpdateMessage) {
-    if (text.toLowerCase().includes('update bank rates')) {
-      log('info', '🏦 Bank rates update message detected (direct mention)');
-    } else if (hasReply && replyInfo?.text?.toLowerCase().includes('update bank rates')) {
-      log('info', '🏦 Bank rates update message detected (reply to update bank rates)');
-    }
+    log('info', '🏦 Bank rates update message detected');
   }
 
   // Memory logging every 50 messages
@@ -1084,20 +1094,22 @@ async function handleIncomingMessage(msg) {
     }
   }
 
-  // Determine message type with priority: bank_rates_update > valuation > interest_rate
+  // Determine message type with priority: valuation_reply > valuation_request > bank_rates_update > interest_rate
   let messageType;
-  if (isBankRatesUpdateMessage) {
+  if (isValuationReply) {
+    messageType = 'valuation_reply';
+  } else if (isValuationRequest) {
+    messageType = 'valuation_request';
+  } else if (isBankRatesUpdateMessage) {
     messageType = 'bank_rates_update';
-  } else if (isValuationMessage) {
-    messageType = 'valuation';
   } else {
     messageType = 'interest_rate';
   }
 
   const payload = {
+    message: msg,
     groupId,
     senderId,
-    text,
     messageId,
     hasReply,
     replyInfo,
@@ -1609,6 +1621,116 @@ app.get('/api/contacts/groups/whatsapp', async (req, res) => {
 
 app.get('/api/contacts/:id/statistics', async (req, res) => {
   const result = await contactAPI.getStatistics(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+// ============================================
+// VALUATION REQUESTS API ENDPOINTS
+// ============================================
+
+app.get('/api/valuations/list', async (req, res) => {
+  const filters = {
+    status: req.query.status,
+    banker_id: req.query.banker_id,
+    date_from: req.query.date_from,
+    date_to: req.query.date_to,
+    search: req.query.search,
+    limit: req.query.limit ? parseInt(req.query.limit) : undefined,
+  };
+  const result = await valuationAPI.getValuations(filters);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/valuations/:id', async (req, res) => {
+  const result = await valuationAPI.getValuation(req.params.id);
+  res.status(result.success ? 200 : 404).json(result);
+});
+
+app.put('/api/valuations/:id/update', async (req, res) => {
+  const result = await valuationAPI.updateValuation(req.params.id, req.body);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.delete('/api/valuations/:id/delete', async (req, res) => {
+  const result = await valuationAPI.deleteValuation(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/valuations/statistics/summary', async (req, res) => {
+  const filters = {
+    date_from: req.query.date_from,
+    date_to: req.query.date_to,
+  };
+  const result = await valuationAPI.getStatistics(filters);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/valuations/export/csv', async (req, res) => {
+  const filters = {
+    status: req.query.status,
+    banker_id: req.query.banker_id,
+    date_from: req.query.date_from,
+    date_to: req.query.date_to,
+    search: req.query.search,
+  };
+  const result = await valuationAPI.exportToCSV(filters);
+
+  if (result.success) {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.status(200).send(result.csv);
+  } else {
+    res.status(400).json(result);
+  }
+});
+
+// ============================================
+// BANKER MANAGEMENT API ENDPOINTS
+// ============================================
+
+app.get('/api/bankers/list', async (req, res) => {
+  const filters = {
+    is_active: req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined,
+    bank_name: req.query.bank_name,
+    search: req.query.search,
+  };
+  const result = await bankerAPI.getBankers(filters);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/bankers/:id', async (req, res) => {
+  const result = await bankerAPI.getBanker(req.params.id);
+  res.status(result.success ? 200 : 404).json(result);
+});
+
+app.post('/api/bankers/create', async (req, res) => {
+  const result = await bankerAPI.createBanker(req.body);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.put('/api/bankers/:id/update', async (req, res) => {
+  const result = await bankerAPI.updateBanker(req.params.id, req.body);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.delete('/api/bankers/:id/delete', async (req, res) => {
+  const result = await bankerAPI.deleteBanker(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.post('/api/bankers/:id/toggle', async (req, res) => {
+  const { is_active } = req.body;
+  const result = await bankerAPI.toggleActive(req.params.id, is_active);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/bankers/:id/statistics', async (req, res) => {
+  const result = await bankerAPI.getBankerStatistics(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/bankers/banks/names', async (req, res) => {
+  const result = await bankerAPI.getBankNames();
   res.status(result.success ? 200 : 400).json(result);
 });
 

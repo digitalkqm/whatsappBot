@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Banker Management - WhatsApp Bot</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f5f7fa;
+      color: #2c3e50;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h1 {
+      font-size: 24px;
+    }
+
+    .filters {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .filter-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .filter-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+
+    .filter-group input,
+    .filter-group select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #3498db;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2980b9;
+    }
+
+    .btn-secondary {
+      background: #95a5a6;
+      color: white;
+    }
+
+    .btn-success {
+      background: #27ae60;
+      color: white;
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .btn-warning {
+      background: #f39c12;
+      color: white;
+    }
+
+    .table-container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1000px;
+    }
+
+    thead {
+      background: #34495e;
+      color: white;
+    }
+
+    th {
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #ecf0f1;
+      font-size: 13px;
+    }
+
+    tr:hover {
+      background: #f8f9fa;
+    }
+
+    .status-active {
+      background: #d4edda;
+      color: #155724;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .status-inactive {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .action-btn {
+      padding: 4px 8px;
+      font-size: 12px;
+      margin: 0 2px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #7f8c8d;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      margin-bottom: 20px;
+    }
+
+    .modal-header h2 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .form-group small {
+      color: #7f8c8d;
+      font-size: 12px;
+    }
+
+    .nav {
+      background: #2c3e50;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .nav a {
+      color: white;
+      text-decoration: none;
+      padding: 10px 15px;
+      margin: 0 5px;
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      background: #34495e;
+    }
+
+    .keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .keyword-tag {
+      background: #3498db;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #7f8c8d;
+    }
+
+    .empty-state h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/">Dashboard</a>
+    <a href="/valuations.html">Valuations</a>
+    <a href="/bankers.html" class="active">Bankers</a>
+    <a href="/templates.html">Templates</a>
+    <a href="/contacts.html">Contacts</a>
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>🏦 Banker Management</h1>
+        <p>Manage bankers and routing configuration</p>
+      </div>
+      <button class="btn-success" onclick="showCreateModal()">+ Add Banker</button>
+    </div>
+
+    <div class="filters">
+      <div class="filter-group">
+        <div>
+          <label>Status</label>
+          <select id="filter-status">
+            <option value="">All</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+        </div>
+        <div>
+          <label>Search</label>
+          <input type="text" id="filter-search" placeholder="Name or bank...">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" onclick="applyFilters()">Apply Filters</button>
+        <button class="btn-secondary" onclick="resetFilters()">Reset</button>
+        <button class="btn-secondary" onclick="refreshData()">Refresh</button>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <div class="table-wrapper">
+        <table id="bankers-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Bank</th>
+              <th>Agent #</th>
+              <th>WhatsApp Group</th>
+              <th>Keywords</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Total Valuations</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bankers-tbody">
+            <tr>
+              <td colspan="9" class="loading">Loading bankers...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create/Edit Modal -->
+  <div class="modal" id="form-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="form-title">Add Banker</h2>
+      </div>
+      <form id="banker-form" onsubmit="saveBanker(event)">
+        <input type="hidden" id="banker-id">
+
+        <div class="form-group">
+          <label>Name *</label>
+          <input type="text" id="banker-name" required>
+          <small>Unique identifier (e.g., "Yvonne")</small>
+        </div>
+
+        <div class="form-group">
+          <label>Display Name *</label>
+          <input type="text" id="banker-display-name" required>
+          <small>Full name for UI display</small>
+        </div>
+
+        <div class="form-group">
+          <label>Agent Number</label>
+          <input type="text" id="banker-agent-number" placeholder="AG001">
+        </div>
+
+        <div class="form-group">
+          <label>Bank Name</label>
+          <input type="text" id="banker-bank-name" placeholder="Premas, DBS, OCBC, etc.">
+        </div>
+
+        <div class="form-group">
+          <label>WhatsApp Group ID *</label>
+          <input type="text" id="banker-group-id" required placeholder="6596440186-1598498077@g.us">
+          <small>Target group ID for forwarding valuations</small>
+        </div>
+
+        <div class="form-group">
+          <label>WhatsApp Group Name</label>
+          <input type="text" id="banker-group-name" placeholder="Premas Group">
+        </div>
+
+        <div class="form-group">
+          <label>Routing Keywords</label>
+          <input type="text" id="banker-keywords" placeholder="yvonne, premas">
+          <small>Comma-separated keywords for auto-routing</small>
+        </div>
+
+        <div class="form-group">
+          <label>Priority</label>
+          <input type="number" id="banker-priority" value="0" min="0" max="100">
+          <small>Higher priority = checked first (0-100)</small>
+        </div>
+
+        <div class="form-group">
+          <label>Status</label>
+          <select id="banker-active">
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+        </div>
+
+        <div class="actions" style="margin-top: 20px;">
+          <button type="submit" class="btn-success">Save</button>
+          <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Statistics Modal -->
+  <div class="modal" id="stats-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="stats-title">Banker Statistics</h2>
+      </div>
+      <div id="stats-content"></div>
+      <div class="actions" style="margin-top: 20px;">
+        <button class="btn-secondary" onclick="closeStatsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentData = [];
+    let currentFilters = {};
+
+    async function loadBankers() {
+      try {
+        const params = new URLSearchParams(currentFilters);
+        const response = await fetch(`/api/bankers/list?${params}`);
+        const result = await response.json();
+
+        if (result.success) {
+          currentData = result.data;
+          renderTable(currentData);
+        } else {
+          showError('Failed to load bankers');
+        }
+      } catch (error) {
+        console.error('Error loading bankers:', error);
+        showError('Error loading bankers');
+      }
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById('bankers-tbody');
+
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><h3>No bankers found</h3><p>Click "Add Banker" to create one</p></td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.map(banker => {
+        const keywords = Array.isArray(banker.routing_keywords)
+          ? banker.routing_keywords.map(k => `<span class="keyword-tag">${k}</span>`).join(' ')
+          : '-';
+
+        const statusClass = banker.is_active ? 'status-active' : 'status-inactive';
+        const statusText = banker.is_active ? 'ACTIVE' : 'INACTIVE';
+
+        return `
+          <tr>
+            <td><strong>${banker.display_name}</strong><br><small>${banker.name}</small></td>
+            <td>${banker.bank_name || '-'}</td>
+            <td>${banker.agent_number || '-'}</td>
+            <td><code>${banker.whatsapp_group_id.substring(0, 20)}...</code><br><small>${banker.whatsapp_group_name || ''}</small></td>
+            <td><div class="keywords">${keywords}</div></td>
+            <td>${banker.priority}</td>
+            <td><span class="${statusClass}">${statusText}</span></td>
+            <td>${banker.total_valuations || 0}</td>
+            <td>
+              <button class="btn-primary action-btn" onclick="editBanker('${banker.id}')">Edit</button>
+              <button class="btn-warning action-btn" onclick="viewStats('${banker.id}')">Stats</button>
+              <button class="btn-${banker.is_active ? 'secondary' : 'success'} action-btn" onclick="toggleActive('${banker.id}', ${!banker.is_active})">
+                ${banker.is_active ? 'Deactivate' : 'Activate'}
+              </button>
+              <button class="btn-danger action-btn" onclick="deleteBanker('${banker.id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function showCreateModal() {
+      document.getElementById('form-title').textContent = 'Add Banker';
+      document.getElementById('banker-form').reset();
+      document.getElementById('banker-id').value = '';
+      document.getElementById('form-modal').classList.add('active');
+    }
+
+    async function editBanker(id) {
+      try {
+        const response = await fetch(`/api/bankers/${id}`);
+        const result = await response.json();
+
+        if (result.success) {
+          const banker = result.data;
+
+          document.getElementById('form-title').textContent = 'Edit Banker';
+          document.getElementById('banker-id').value = banker.id;
+          document.getElementById('banker-name').value = banker.name;
+          document.getElementById('banker-display-name').value = banker.display_name;
+          document.getElementById('banker-agent-number').value = banker.agent_number || '';
+          document.getElementById('banker-bank-name').value = banker.bank_name || '';
+          document.getElementById('banker-group-id').value = banker.whatsapp_group_id;
+          document.getElementById('banker-group-name').value = banker.whatsapp_group_name || '';
+          document.getElementById('banker-keywords').value = Array.isArray(banker.routing_keywords) ? banker.routing_keywords.join(', ') : '';
+          document.getElementById('banker-priority').value = banker.priority || 0;
+          document.getElementById('banker-active').value = banker.is_active.toString();
+
+          document.getElementById('form-modal').classList.add('active');
+        }
+      } catch (error) {
+        console.error('Error loading banker:', error);
+        alert('Error loading banker details');
+      }
+    }
+
+    async function saveBanker(event) {
+      event.preventDefault();
+
+      const id = document.getElementById('banker-id').value;
+      const keywords = document.getElementById('banker-keywords').value
+        .split(',')
+        .map(k => k.trim())
+        .filter(k => k);
+
+      const bankerData = {
+        name: document.getElementById('banker-name').value,
+        display_name: document.getElementById('banker-display-name').value,
+        agent_number: document.getElementById('banker-agent-number').value || null,
+        bank_name: document.getElementById('banker-bank-name').value || null,
+        whatsapp_group_id: document.getElementById('banker-group-id').value,
+        whatsapp_group_name: document.getElementById('banker-group-name').value || null,
+        routing_keywords: keywords,
+        priority: parseInt(document.getElementById('banker-priority').value) || 0,
+        is_active: document.getElementById('banker-active').value === 'true',
+      };
+
+      try {
+        let response;
+        if (id) {
+          response = await fetch(`/api/bankers/${id}/update`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bankerData),
+          });
+        } else {
+          response = await fetch('/api/bankers/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bankerData),
+          });
+        }
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(id ? 'Banker updated successfully' : 'Banker created successfully');
+          closeModal();
+          refreshData();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Error saving banker:', error);
+        alert('Error saving banker');
+      }
+    }
+
+    async function toggleActive(id, isActive) {
+      try {
+        const response = await fetch(`/api/bankers/${id}/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: isActive }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(`Banker ${isActive ? 'activated' : 'deactivated'} successfully`);
+          refreshData();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Error toggling banker:', error);
+        alert('Error updating banker status');
+      }
+    }
+
+    async function deleteBanker(id) {
+      if (!confirm('Are you sure you want to delete this banker? This action cannot be undone.')) return;
+
+      try {
+        const response = await fetch(`/api/bankers/${id}/delete`, { method: 'DELETE' });
+        const result = await response.json();
+
+        if (result.success) {
+          alert('Banker deleted successfully');
+          refreshData();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Error deleting banker:', error);
+        alert('Error deleting banker');
+      }
+    }
+
+    async function viewStats(id) {
+      try {
+        const response = await fetch(`/api/bankers/${id}/statistics`);
+        const result = await response.json();
+
+        if (result.success) {
+          const stats = result.data;
+          const banker = stats.banker;
+
+          document.getElementById('stats-title').textContent = `Statistics: ${banker.display_name}`;
+
+          const statusBreakdown = Object.entries(stats.by_status || {})
+            .map(([status, count]) => `<li>${status}: ${count}</li>`)
+            .join('');
+
+          document.getElementById('stats-content').innerHTML = `
+            <div class="form-group">
+              <label>Total Valuations</label>
+              <input type="text" value="${stats.total_valuations}" readonly>
+            </div>
+            <div class="form-group">
+              <label>Average Response Time</label>
+              <input type="text" value="${stats.avg_response_time ? stats.avg_response_time + ' minutes' : 'N/A'}" readonly>
+            </div>
+            <div class="form-group">
+              <label>Status Breakdown</label>
+              <ul>${statusBreakdown || '<li>No valuations yet</li>'}</ul>
+            </div>
+          `;
+
+          document.getElementById('stats-modal').classList.add('active');
+        }
+      } catch (error) {
+        console.error('Error loading statistics:', error);
+        alert('Error loading statistics');
+      }
+    }
+
+    function applyFilters() {
+      currentFilters = {
+        is_active: document.getElementById('filter-status').value,
+        search: document.getElementById('filter-search').value,
+      };
+
+      Object.keys(currentFilters).forEach(key => {
+        if (!currentFilters[key]) delete currentFilters[key];
+      });
+
+      refreshData();
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-search').value = '';
+      currentFilters = {};
+      refreshData();
+    }
+
+    function refreshData() {
+      loadBankers();
+    }
+
+    function closeModal() {
+      document.getElementById('form-modal').classList.remove('active');
+    }
+
+    function closeStatsModal() {
+      document.getElementById('stats-modal').classList.remove('active');
+    }
+
+    function showError(message) {
+      const tbody = document.getElementById('bankers-tbody');
+      tbody.innerHTML = `<tr><td colspan="9" class="loading" style="color: #e74c3c;">${message}</td></tr>`;
+    }
+
+    // Initialize
+    refreshData();
+  </script>
+</body>
+</html>
