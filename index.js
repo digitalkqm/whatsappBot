@@ -865,7 +865,10 @@ function setupClientEvents(c) {
   c.on('ready', async () => {
     log('info', '✅ WhatsApp client is ready.');
     currentQRCode = null; // Clear QR code when authenticated
-    
+
+    // Broadcast ready status to dashboard
+    broadcastToClients({ type: 'ready', authenticated: true });
+
     // Trigger session save after client is ready with human-like delay
     const delay = humanBehavior.getRandomDelay(3000, 8000);
     setTimeout(async () => {
@@ -879,7 +882,10 @@ function setupClientEvents(c) {
 
   c.on('authenticated', async () => {
     log('info', '🔐 Client authenticated.');
-    
+
+    // Broadcast authenticating status to dashboard
+    broadcastToClients({ type: 'authenticated', status: 'authenticating' });
+
     // Trigger session save after authentication with human-like delay
     const delay = humanBehavior.getRandomDelay(1000, 3000);
     setTimeout(async () => {

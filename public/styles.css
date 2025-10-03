@@ -89,6 +89,18 @@ header h1 {
   display: flex;
   justify-content: center;
   margin: 20px 0;
+  transition: all 0.3s ease;
+}
+
+.qr-container.celebrate {
+  animation: celebrate 0.5s ease-in-out;
+}
+
+@keyframes celebrate {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.05) rotate(2deg); }
+  50% { transform: scale(1.05) rotate(-2deg); }
+  75% { transform: scale(1.05) rotate(2deg); }
 }
 
 .qr-placeholder {
@@ -97,14 +109,104 @@ header h1 {
   border: 3px dashed #ddd;
   border-radius: 12px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: #f9f9f9;
+  transition: all 0.3s ease;
+}
+
+.qr-placeholder.loading {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f5f7ff 0%, #e8ebff 100%);
+}
+
+.qr-placeholder.waiting {
+  border-color: #6c757d;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.qr-placeholder.expired {
+  border-color: #ffc107;
+  background: linear-gradient(135deg, #fff9e6 0%, #ffecb3 100%);
+  border-style: solid;
+}
+
+.qr-placeholder.error {
+  border-color: #dc3545;
+  background: linear-gradient(135deg, #ffe6e6 0%, #ffcccc 100%);
+  border-style: solid;
+}
+
+.qr-placeholder.authenticating {
+  border-color: #17a2b8;
+  background: linear-gradient(135deg, #e6f7ff 0%, #b3e5fc 100%);
+  border-style: solid;
+}
+
+.qr-placeholder.success {
+  border-color: #28a745;
+  background: linear-gradient(135deg, #e6ffe6 0%, #b3ffb3 100%);
+  border-style: solid;
+  animation: successPulse 1s ease-in-out;
+}
+
+@keyframes successPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 .qr-placeholder p {
   color: #999;
   font-size: 16px;
+  margin: 10px 0;
+}
+
+.qr-placeholder small {
+  color: #666;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.qr-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Spinner animation */
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.spinner.success {
+  border-top-color: #28a745;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Status icons */
+.expired-icon,
+.error-icon,
+.success-icon {
+  font-size: 64px;
+  animation: iconBounce 0.5s ease-in-out;
+}
+
+@keyframes iconBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 .qr-image {
@@ -112,6 +214,13 @@ header h1 {
   height: 300px;
   border: 3px solid #667eea;
   border-radius: 12px;
+  animation: fadeIn 0.5s ease-in-out;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .qr-instructions {

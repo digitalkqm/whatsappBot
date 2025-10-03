@@ -2,6 +2,9 @@
 
 let ws = null;
 let reconnectInterval = null;
+let qrExpiryTimer = null;
+let qrGeneratedTime = null;
+const QR_EXPIRY_SECONDS = 60; // QR codes typically expire in 60 seconds
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
@@ -19,6 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Poll for updates every 10 seconds
   setInterval(fetchHealthStatus, 10000);
+
+  // Check QR code status every 3 seconds
+  setInterval(checkQRStatus, 3000);
 });
 
 // WebSocket connection for real-time updates
@@ -71,6 +77,10 @@ function connectWebSocket() {
 function handleWebSocketMessage(data) {
   if (data.type === 'qr') {
     displayQRCode(data.qr);
+  } else if (data.type === 'authenticated') {
+    showAuthenticating();
+  } else if (data.type === 'ready') {
+    showAuthenticationSuccess();
   } else if (data.type === 'status') {
     updateStatus(data.status);
   } else if (data.type === 'workflow') {
@@ -122,6 +132,8 @@ async function fetchHealthStatus() {
 
 // Fetch QR code
 async function fetchQRCode() {
+  showQRLoading();
+
   try {
     const response = await fetch('/qr-code');
     const data = await response.json();
@@ -129,11 +141,29 @@ async function fetchQRCode() {
     if (data.qr) {
       displayQRCode(data.qr);
     } else if (data.authenticated) {
-      hideQRCode();
-      showMessage('Already authenticated', 'success');
+      showAuthenticationSuccess();
+    } else {
+      showQRWaiting();
     }
   } catch (error) {
     console.error('Failed to fetch QR code:', error);
+    showQRError('Failed to fetch QR code. Retrying...');
+  }
+}
+
+// Check QR status periodically
+async function checkQRStatus() {
+  try {
+    const response = await fetch('/qr-code');
+    const data = await response.json();
+
+    if (data.authenticated) {
+      showAuthenticationSuccess();
+    } else if (data.state === 'CONNECTED') {
+      showAuthenticationSuccess();
+    }
+  } catch (error) {
+    // Silent fail for background checks
   }
 }
 
@@ -145,16 +175,176 @@ function displayQRCode(qrData) {
   image.src = qrData;
   image.style.display = 'block';
   placeholder.style.display = 'none';
+
+  // Track QR generation time and start expiry timer
+  qrGeneratedTime = Date.now();
+  startQRExpiryTimer();
+
+  // Update instructions to show active state
+  updateQRInstructions('active');
 }
 
-// Hide QR code
-function hideQRCode() {
+// Show QR loading state
+function showQRLoading() {
   const placeholder = document.getElementById('qrPlaceholder');
   const image = document.getElementById('qrCodeImage');
 
   image.style.display = 'none';
   placeholder.style.display = 'flex';
-  placeholder.innerHTML = '<p>✅ Authenticated</p>';
+  placeholder.className = 'qr-placeholder loading';
+  placeholder.innerHTML = `
+    <div class="qr-status">
+      <div class="spinner"></div>
+      <p>Generating QR code...</p>
+    </div>
+  `;
+
+  updateQRInstructions('loading');
+}
+
+// Show QR waiting state
+function showQRWaiting() {
+  const placeholder = document.getElementById('qrPlaceholder');
+  const image = document.getElementById('qrCodeImage');
+
+  image.style.display = 'none';
+  placeholder.style.display = 'flex';
+  placeholder.className = 'qr-placeholder waiting';
+  placeholder.innerHTML = `
+    <div class="qr-status">
+      <div class="spinner"></div>
+      <p>Waiting for QR code...</p>
+    </div>
+  `;
+
+  updateQRInstructions('waiting');
+}
+
+// Show QR expired state
+function showQRExpired() {
+  const placeholder = document.getElementById('qrPlaceholder');
+  const image = document.getElementById('qrCodeImage');
+
+  image.style.display = 'none';
+  placeholder.style.display = 'flex';
+  placeholder.className = 'qr-placeholder expired';
+  placeholder.innerHTML = `
+    <div class="qr-status">
+      <div class="expired-icon">⏰</div>
+      <p>QR Code Expired</p>
+      <button class="btn btn-primary" onclick="fetchQRCode()" style="margin-top: 15px;">
+        🔄 Generate New Code
+      </button>
+    </div>
+  `;
+
+  updateQRInstructions('expired');
+  clearQRExpiryTimer();
+}
+
+// Show QR error state
+function showQRError(message) {
+  const placeholder = document.getElementById('qrPlaceholder');
+  const image = document.getElementById('qrCodeImage');
+
+  image.style.display = 'none';
+  placeholder.style.display = 'flex';
+  placeholder.className = 'qr-placeholder error';
+  placeholder.innerHTML = `
+    <div class="qr-status">
+      <div class="error-icon">❌</div>
+      <p>${message}</p>
+    </div>
+  `;
+
+  updateQRInstructions('error');
+}
+
+// Show authenticating state
+function showAuthenticating() {
+  const placeholder = document.getElementById('qrPlaceholder');
+  const image = document.getElementById('qrCodeImage');
+
+  image.style.display = 'none';
+  placeholder.style.display = 'flex';
+  placeholder.className = 'qr-placeholder authenticating';
+  placeholder.innerHTML = `
+    <div class="qr-status">
+      <div class="spinner success"></div>
+      <p>Authenticating...</p>
+      <small>Please wait while we connect</small>
+    </div>
+  `;
+
+  updateQRInstructions('authenticating');
+  clearQRExpiryTimer();
+}
+
+// Show authentication success
+function showAuthenticationSuccess() {
+  const placeholder = document.getElementById('qrPlaceholder');
+  const image = document.getElementById('qrCodeImage');
+
+  image.style.display = 'none';
+  placeholder.style.display = 'flex';
+  placeholder.className = 'qr-placeholder success';
+  placeholder.innerHTML = `
+    <div class="qr-status">
+      <div class="success-icon">✅</div>
+      <p>Successfully Connected!</p>
+      <small>Your WhatsApp bot is ready</small>
+    </div>
+  `;
+
+  updateQRInstructions('success');
+  clearQRExpiryTimer();
+
+  // Trigger confetti or celebration animation
+  celebrateSuccess();
+}
+
+// Update QR instructions based on state
+function updateQRInstructions(state) {
+  const instructions = document.querySelector('.qr-instructions');
+
+  const messages = {
+    loading: '<h3>⏳ Generating QR Code...</h3><p>Please wait a moment while we prepare your authentication code.</p>',
+    waiting: '<h3>⏳ Waiting...</h3><p>The QR code will appear shortly. Make sure WhatsApp is open on your phone.</p>',
+    active: '<h3>📱 Scan to Connect:</h3><ol><li>Open WhatsApp on your phone</li><li>Tap <strong>Menu</strong> or <strong>Settings</strong></li><li>Tap <strong>Linked Devices</strong></li><li>Tap <strong>Link a Device</strong></li><li>Scan this QR code with your phone</li></ol>',
+    expired: '<h3>⏰ QR Code Expired</h3><p>QR codes expire after 60 seconds for security. Click the button above to generate a new one.</p>',
+    error: '<h3>❌ Error</h3><p>Something went wrong. We\'ll automatically retry in a moment.</p>',
+    authenticating: '<h3>🔐 Authenticating...</h3><p>Great! We detected your scan. Connecting to WhatsApp servers...</p>',
+    success: '<h3>✅ Connected!</h3><p>Your WhatsApp bot is now active and ready to process messages.</p>'
+  };
+
+  instructions.innerHTML = messages[state] || messages.waiting;
+}
+
+// QR expiry timer management
+function startQRExpiryTimer() {
+  clearQRExpiryTimer();
+
+  qrExpiryTimer = setTimeout(() => {
+    showQRExpired();
+  }, QR_EXPIRY_SECONDS * 1000);
+}
+
+function clearQRExpiryTimer() {
+  if (qrExpiryTimer) {
+    clearTimeout(qrExpiryTimer);
+    qrExpiryTimer = null;
+  }
+}
+
+// Celebration animation
+function celebrateSuccess() {
+  // Simple celebration - could be enhanced with confetti library
+  const container = document.querySelector('.qr-container');
+  container.classList.add('celebrate');
+
+  setTimeout(() => {
+    container.classList.remove('celebrate');
+  }, 2000);
 }
 
 // Update status display
