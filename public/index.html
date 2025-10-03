@@ -29,29 +29,31 @@
     <main role="main">
       <!-- QR Code Section -->
       <section class="card" id="qrSection" aria-labelledby="qr-heading">
-        <h2 id="qr-heading">📱 QR Code Authentication</h2>
-
-        <div id="qrCodeContainer" class="qr-container" role="region" aria-live="polite" aria-atomic="true">
-          <div class="qr-placeholder" id="qrPlaceholder">
-            <p>Waiting for QR code...</p>
-          </div>
-          <img id="qrCodeImage" class="qr-image" style="display: none;" alt="WhatsApp QR Code for authentication">
-        </div>
-
-        <div class="qr-instructions">
-          <h3>How to connect:</h3>
-          <ol>
-            <li>Open WhatsApp on your phone</li>
-            <li>Tap <strong>Menu</strong> or <strong>Settings</strong></li>
-            <li>Tap <strong>Linked Devices</strong></li>
-            <li>Tap <strong>Link a Device</strong></li>
-            <li>Scan this QR code with your phone</li>
-          </ol>
-        </div>
-
-        <div class="qr-actions">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
+          <h2 id="qr-heading" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">📱 QR Code Authentication</h2>
           <button id="refreshQR" class="btn btn-secondary" aria-label="Refresh QR Code">🔄 Refresh QR Code</button>
-          <button id="logoutBtn" class="btn btn-danger" aria-label="Logout from WhatsApp">🚪 Logout</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-8); align-items: center;">
+          <!-- Instructions on the left -->
+          <div class="qr-instructions" style="margin: 0;">
+            <h3>📱 Scan to Connect:</h3>
+            <ol>
+              <li>Open WhatsApp on your phone</li>
+              <li>Tap <strong>Menu</strong> or <strong>Settings</strong></li>
+              <li>Tap <strong>Linked Devices</strong></li>
+              <li>Tap <strong>Link a Device</strong></li>
+              <li>Scan this QR code with your phone</li>
+            </ol>
+          </div>
+
+          <!-- QR Code on the right -->
+          <div id="qrCodeContainer" class="qr-container" role="region" aria-live="polite" aria-atomic="true" style="margin: 0;">
+            <div class="qr-placeholder" id="qrPlaceholder">
+              <p>Waiting for QR code...</p>
+            </div>
+            <img id="qrCodeImage" class="qr-image" style="display: none;" alt="WhatsApp QR Code for authentication">
+          </div>
         </div>
       </section>
 

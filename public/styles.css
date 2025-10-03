@@ -874,6 +874,30 @@ textarea:focus {
   .qr-actions .btn {
     width: 100%;
   }
+
+  /* QR Section responsive layout */
+  #qrSection > div:first-child {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: var(--space-4);
+  }
+
+  #qrSection > div:first-child button {
+    width: 100%;
+  }
+
+  #qrSection > div:nth-child(2) {
+    grid-template-columns: 1fr !important;
+    gap: var(--space-6) !important;
+  }
+
+  #qrSection .qr-instructions {
+    order: 2;
+  }
+
+  #qrSection .qr-container {
+    order: 1;
+  }
 }
 
 @media (max-width: 480px) {
