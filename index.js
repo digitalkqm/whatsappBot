@@ -409,23 +409,35 @@ async function extractSessionData(client) {
     
     if (rawLocalStorage && Object.keys(rawLocalStorage).length > 5) {
       log('info', `🔍 Extracted raw localStorage with ${Object.keys(rawLocalStorage).length} items`);
-      
+
+      // Log a few keys for debugging (first 5 keys)
+      const sampleKeys = Object.keys(rawLocalStorage).slice(0, 5);
+      log('debug', `Sample keys: ${sampleKeys.join(', ')}`);
+
       // Validate session size and content
       const sessionSize = JSON.stringify(rawLocalStorage).length;
-      const hasWAData = Object.keys(rawLocalStorage).some(key => 
-        key.includes('WABrowserId') || key.includes('WASecretBundle') || key.includes('WAToken')
+
+      // More flexible validation - check for any WhatsApp-related keys
+      const hasWAData = Object.keys(rawLocalStorage).some(key =>
+        key.toLowerCase().includes('wa') ||
+        key.includes('WABrowserId') ||
+        key.includes('WASecretBundle') ||
+        key.includes('WAToken') ||
+        key.includes('noise') ||
+        key.includes('session')
       );
-      
-      if (sessionSize < 5000) {
+
+      if (sessionSize < 1000) {
         log('warn', `Session data too small (${sessionSize} bytes), might be invalid`);
         return null;
       }
-      
+
       if (!hasWAData) {
         log('warn', 'Session data missing essential WhatsApp keys');
+        log('debug', `All keys: ${Object.keys(rawLocalStorage).join(', ')}`);
         return null;
       }
-      
+
       log('info', `✅ Valid session data extracted (${sessionSize} bytes)`);
       return rawLocalStorage;
     } else {
@@ -505,10 +517,15 @@ class SupabaseStore {
 
       // Validate essential session keys
       if (typeof sessionData === 'object' && sessionData !== null) {
-        const hasEssentialData = Object.keys(sessionData).some(key => 
-          key.includes('WABrowserId') || key.includes('WASecretBundle') || key.includes('WAToken')
+        const hasEssentialData = Object.keys(sessionData).some(key =>
+          key.toLowerCase().includes('wa') ||
+          key.includes('WABrowserId') ||
+          key.includes('WASecretBundle') ||
+          key.includes('WAToken') ||
+          key.includes('noise') ||
+          key.includes('session')
         );
-        
+
         if (!hasEssentialData) {
           log('warn', `Session data exists but missing essential WhatsApp keys for ${sessionKey}`);
           return null;
@@ -538,10 +555,15 @@ class SupabaseStore {
       log('info', `Saving session data (${dataSize} bytes) for ${sessionKey}`);
 
       // Ensure we have essential WhatsApp data
-      const hasEssentialData = Object.keys(sessionData).some(key => 
-        key.includes('WABrowserId') || key.includes('WASecretBundle') || key.includes('WAToken')
+      const hasEssentialData = Object.keys(sessionData).some(key =>
+        key.toLowerCase().includes('wa') ||
+        key.includes('WABrowserId') ||
+        key.includes('WASecretBundle') ||
+        key.includes('WAToken') ||
+        key.includes('noise') ||
+        key.includes('session')
       );
-      
+
       if (!hasEssentialData) {
         log('warn', 'Session data missing essential WhatsApp keys, attempting to extract fresh data');
         
@@ -675,9 +697,14 @@ class SupabaseStore {
       return false;
     }
 
-    const requiredKeys = ['WABrowserId', 'WASecretBundle', 'WAToken1', 'WAToken2'];
-    const hasRequiredKeys = requiredKeys.some(key => 
-      Object.keys(sessionData).some(dataKey => dataKey.includes(key))
+    // More flexible validation
+    const hasRequiredKeys = Object.keys(sessionData).some(key =>
+      key.toLowerCase().includes('wa') ||
+      key.includes('WABrowserId') ||
+      key.includes('WASecretBundle') ||
+      key.includes('WAToken') ||
+      key.includes('noise') ||
+      key.includes('session')
     );
 
     if (!hasRequiredKeys) {
@@ -686,7 +713,7 @@ class SupabaseStore {
     }
 
     const dataSize = JSON.stringify(sessionData).length;
-    if (dataSize < 5000) {
+    if (dataSize < 1000) {
       log('warn', `Session data too small: ${dataSize} bytes`);
       return false;
     }
