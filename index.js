@@ -36,46 +36,144 @@ const HUMAN_CONFIG = {
   MAX_RESPONSE_DELAY: 10000,   // Maximum time before processing/responding
   MIN_TYPING_DURATION: 1000,   // Minimum typing indicator duration
   MAX_TYPING_DURATION: 5000,   // Maximum typing indicator duration
-  
+
   // Rate limiting
   MAX_MESSAGES_PER_HOUR: 80,   // Maximum messages to process per hour
   MAX_MESSAGES_PER_DAY: 680,   // Maximum messages to process per day
+  MAX_MESSAGES_PER_GROUP_PER_HOUR: 20, // Maximum messages per group per hour
   COOLDOWN_BETWEEN_ACTIONS: 250, // Minimum time between any actions
-  
+
   // Activity patterns (24-hour format)
-  ACTIVE_HOURS_START: 7,       // Start being active at 7 AM
-  ACTIVE_HOURS_END: 23,        // Stop being active at 11 PM
+  ACTIVE_HOURS_START: 7,       // Start being active at 7 AM (randomized daily)
+  ACTIVE_HOURS_END: 23,        // Stop being active at 11 PM (randomized daily)
+  ACTIVE_HOURS_VARIATION: 1,   // ±1 hour random variation daily
   SLEEP_MODE_DELAY_MULTIPLIER: 5, // Multiply delays during sleep hours
-  
-  // Session behavior
-   SESSION_BREAK_INTERVAL: 365 * 24 * 60 * 60 * 1000, // 1 year
-   SESSION_BREAK_DURATION: 1000, // 1 second
-  
+
+  // Session behavior (CRITICAL FIXES)
+  SESSION_BREAK_INTERVAL: 8 * 60 * 60 * 1000, // 8 hours (was 1 year)
+  SESSION_BREAK_DURATION: 2 * 60 * 1000, // 2 minutes (was 1 second)
+
   // Message patterns
-  IGNORE_PROBABILITY: 0,    // 5% chance to ignore a message (simulate human oversight)
+  IGNORE_PROBABILITY: 0,       // Message ignoring disabled per user request
   DOUBLE_CHECK_PROBABILITY: 0.1, // 10% chance to re-read a message
+
+  // Random "away" states
+  RANDOM_AWAY_PROBABILITY: 0.05, // 5% chance to go "away"
+  AWAY_DURATION_MIN: 15 * 60 * 1000, // 15 minutes minimum away time
+  AWAY_DURATION_MAX: 45 * 60 * 1000, // 45 minutes maximum away time
+
+  // Weekend/weekday patterns
+  WEEKEND_DELAY_MULTIPLIER: 1.5, // 50% slower on weekends
+
+  // Network variability simulation
+  NETWORK_DELAY_PROBABILITY: 0.03, // 3% chance of network delay
+  NETWORK_DELAY_MIN: 2000, // 2 seconds minimum network delay
+  NETWORK_DELAY_MAX: 10000, // 10 seconds maximum network delay
+
+  // Response quality variation
+  BRIEF_RESPONSE_PROBABILITY: 0.1, // 10% chance of brief response
 };
 
 // --- Human Behavior Tracking ---
 class HumanBehaviorManager {
   constructor() {
     this.messageCount = { hourly: 0, daily: 0 };
+    this.groupMessageCounts = new Map(); // Track messages per group
     this.lastAction = 0;
     this.lastHourReset = Date.now();
     this.lastDayReset = Date.now();
     this.isOnBreak = false;
+    this.isOnAway = false;
+    this.awayStartTime = 0;
     this.breakStartTime = 0;
     this.lastBreakTime = Date.now();
     this.processedMessages = new Set(); // Track processed message IDs
     this.messageQueue = []; // Queue for processing messages
     this.isProcessingQueue = false;
+
+    // Randomized active hours (set daily)
+    this.dailyActiveHours = this.getRandomizedActiveHours();
+    this.lastActiveHoursUpdate = new Date().getDate();
+  }
+
+  // Get randomized active hours for the day
+  getRandomizedActiveHours() {
+    const variation = (Math.random() * 2 - 1) * HUMAN_CONFIG.ACTIVE_HOURS_VARIATION;
+    return {
+      start: Math.max(6, Math.floor(HUMAN_CONFIG.ACTIVE_HOURS_START + variation)),
+      end: Math.min(24, Math.floor(HUMAN_CONFIG.ACTIVE_HOURS_END + variation))
+    };
+  }
+
+  // Update daily active hours if needed
+  updateDailyActiveHours() {
+    const currentDay = new Date().getDate();
+    if (currentDay !== this.lastActiveHoursUpdate) {
+      this.dailyActiveHours = this.getRandomizedActiveHours();
+      this.lastActiveHoursUpdate = currentDay;
+      log('debug', `🕐 Daily active hours updated: ${this.dailyActiveHours.start}:00 - ${this.dailyActiveHours.end}:00`);
+    }
   }
 
   // Check if we're in active hours
   isActiveHours() {
+    this.updateDailyActiveHours();
     const now = new Date();
     const hour = now.getHours();
-    return hour >= HUMAN_CONFIG.ACTIVE_HOURS_START && hour < HUMAN_CONFIG.ACTIVE_HOURS_END;
+    return hour >= this.dailyActiveHours.start && hour < this.dailyActiveHours.end;
+  }
+
+  // Get weekend multiplier
+  getWeekendMultiplier() {
+    const day = new Date().getDay();
+    return (day === 0 || day === 6) ? HUMAN_CONFIG.WEEKEND_DELAY_MULTIPLIER : 1.0;
+  }
+
+  // Get day progress multiplier (slower as day progresses)
+  getDayProgressMultiplier() {
+    const hour = new Date().getHours();
+    if (hour < 10) return 1.0;  // Morning: normal speed
+    if (hour < 14) return 1.2;  // Lunch: slower
+    if (hour < 18) return 1.0;  // Afternoon: normal
+    return 1.5;                 // Evening: slower (tired)
+  }
+
+  // Simulate network variability
+  async simulateNetworkVariability() {
+    if (Math.random() < HUMAN_CONFIG.NETWORK_DELAY_PROBABILITY) {
+      const delay = HUMAN_CONFIG.NETWORK_DELAY_MIN +
+                    Math.random() * (HUMAN_CONFIG.NETWORK_DELAY_MAX - HUMAN_CONFIG.NETWORK_DELAY_MIN);
+      await this.sleep(delay);
+      log('debug', `🌐 Simulated network delay: ${Math.round(delay)}ms`);
+    }
+  }
+
+  // Check if should go away randomly
+  shouldGoAway() {
+    if (this.isOnAway) return false;
+    return Math.random() < HUMAN_CONFIG.RANDOM_AWAY_PROBABILITY;
+  }
+
+  // Start random away state
+  async startAwayState() {
+    if (this.isOnAway) return;
+
+    this.isOnAway = true;
+    this.awayStartTime = Date.now();
+    const duration = HUMAN_CONFIG.AWAY_DURATION_MIN +
+                     Math.random() * (HUMAN_CONFIG.AWAY_DURATION_MAX - HUMAN_CONFIG.AWAY_DURATION_MIN);
+
+    log('info', `🚶 Going away for ${Math.round(duration / 60000)} minutes`);
+
+    setTimeout(() => {
+      this.endAwayState();
+    }, duration);
+  }
+
+  // End away state
+  endAwayState() {
+    this.isOnAway = false;
+    log('info', '👋 Back from away state');
   }
 
   // Check if we should take a break
@@ -105,11 +203,16 @@ class HumanBehaviorManager {
   }
 
   // Check if we can process more messages (rate limiting)
-  canProcessMessage() {
+  canProcessMessage(groupId = null) {
     this.resetCountersIfNeeded();
-    
+
     if (this.isOnBreak) {
       log('info', '😴 Currently on break, skipping message processing');
+      return false;
+    }
+
+    if (this.isOnAway) {
+      log('info', '🚶 Currently away, skipping message processing');
       return false;
     }
 
@@ -121,6 +224,22 @@ class HumanBehaviorManager {
     if (this.messageCount.daily >= HUMAN_CONFIG.MAX_MESSAGES_PER_DAY) {
       log('warn', '📅 Daily message limit reached, skipping message');
       return false;
+    }
+
+    // Check per-group rate limiting
+    if (groupId) {
+      const groupCount = this.groupMessageCounts.get(groupId) || { count: 0, lastReset: Date.now() };
+
+      // Reset group counter if an hour has passed
+      if (Date.now() - groupCount.lastReset > 60 * 60 * 1000) {
+        groupCount.count = 0;
+        groupCount.lastReset = Date.now();
+      }
+
+      if (groupCount.count >= HUMAN_CONFIG.MAX_MESSAGES_PER_GROUP_PER_HOUR) {
+        log('warn', `⏱️ Group hourly message limit reached for ${groupId}`);
+        return false;
+      }
     }
 
     // Check cooldown between actions
@@ -152,12 +271,19 @@ class HumanBehaviorManager {
   }
 
   // Record message processing
-  recordMessageProcessed(messageId) {
+  recordMessageProcessed(messageId, groupId = null) {
     this.messageCount.hourly++;
     this.messageCount.daily++;
     this.lastAction = Date.now();
     this.processedMessages.add(messageId);
-    
+
+    // Track per-group message count
+    if (groupId) {
+      const groupCount = this.groupMessageCounts.get(groupId) || { count: 0, lastReset: Date.now() };
+      groupCount.count++;
+      this.groupMessageCounts.set(groupId, groupCount);
+    }
+
     // Clean old processed messages (keep only last 1000)
     if (this.processedMessages.size > 1000) {
       const messagesToRemove = Array.from(this.processedMessages).slice(0, 100);
@@ -173,13 +299,20 @@ class HumanBehaviorManager {
   // Generate human-like delay
   getRandomDelay(min, max) {
     const baseDelay = Math.random() * (max - min) + min;
-    
+
     // Apply sleep mode multiplier if outside active hours
     if (!this.isActiveHours()) {
       return baseDelay * HUMAN_CONFIG.SLEEP_MODE_DELAY_MULTIPLIER;
     }
-    
-    return baseDelay;
+
+    // Apply weekend multiplier
+    const weekendMultiplier = this.getWeekendMultiplier();
+
+    // Apply day progress multiplier
+    const dayProgressMultiplier = this.getDayProgressMultiplier();
+
+    // Combine all multipliers
+    return baseDelay * weekendMultiplier * dayProgressMultiplier;
   }
 
   // Add message to processing queue
@@ -241,14 +374,23 @@ class HumanBehaviorManager {
       return;
     }
 
-    // Random chance to ignore message (simulate human oversight)
+    // Check if should go away
+    if (this.shouldGoAway()) {
+      await this.startAwayState();
+      return;
+    }
+
+    // Random chance to ignore message (simulate human oversight) - DISABLED per user request
     if (Math.random() < HUMAN_CONFIG.IGNORE_PROBABILITY) {
       log('info', '🤷 Randomly ignoring message (simulating human oversight)');
       return;
     }
 
-    // Check rate limits
-    if (!this.canProcessMessage()) {
+    // Simulate network variability
+    await this.simulateNetworkVariability();
+
+    // Check rate limits (include groupId for per-group limiting)
+    if (!this.canProcessMessage(payload.groupId)) {
       log('info', '⏱️ Rate limit reached, skipping message processing');
       return;
     }
@@ -264,14 +406,14 @@ class HumanBehaviorManager {
 
     // Add response delay
     const responseDelay = this.getRandomDelay(
-      HUMAN_CONFIG.MIN_RESPONSE_DELAY, 
+      HUMAN_CONFIG.MIN_RESPONSE_DELAY,
       HUMAN_CONFIG.MAX_RESPONSE_DELAY
     );
     await this.sleep(responseDelay);
 
     // Process the message
     await this.sendWebhooks(payload);
-    this.recordMessageProcessed(payload.messageId);
+    this.recordMessageProcessed(payload.messageId, payload.groupId);
   }
 
   // Simulate reading a message (mark as read after delay)
@@ -1830,8 +1972,8 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Enhanced Watchdog with human behavior consideration
-setInterval(async () => {
+// Enhanced Watchdog with human behavior consideration and randomized timing
+const runWatchdog = async () => {
   if (!client) {
     log('warn', '🕵️ Watchdog: client is missing. Restarting...');
     const delay = humanBehavior.getRandomDelay(2000, 8000);
@@ -1868,25 +2010,32 @@ setInterval(async () => {
     const delay = humanBehavior.getRandomDelay(5000, 15000);
     setTimeout(startClient, delay);
   }
-}, 8 * 60 * 1000); // Increased interval to 8 minutes for more human-like behavior
 
-// Memory monitoring with human-aware timing
+  // Schedule next watchdog check with randomized interval (7-10 minutes)
+  const nextInterval = (7 + Math.random() * 3) * 60 * 1000;
+  setTimeout(runWatchdog, nextInterval);
+};
+
+// Start watchdog
+setTimeout(runWatchdog, 8 * 60 * 1000);
+
+// Memory monitoring with human-aware timing and randomized intervals
 const checkMemoryUsage = () => {
   const mem = process.memoryUsage();
   const rssMB = (mem.rss / 1024 / 1024).toFixed(1);
   const heapMB = (mem.heapUsed / 1024 / 1024).toFixed(1);
   const heapTotalMB = (mem.heapTotal / 1024 / 1024).toFixed(1);
-  
+
   log('info', `🧠 Memory: RSS=${rssMB}MB, HeapUsed=${heapMB}MB, HeapTotal=${heapTotalMB}MB`);
-  
+
   if (parseFloat(rssMB) > 450) {
     log('error', '🚨 CRITICAL MEMORY USAGE! Force restarting client...');
-    
+
     if (global.gc) {
       log('warn', 'Forcing garbage collection...');
       global.gc();
     }
-    
+
     if (client) {
       (async () => {
         try {
@@ -1894,7 +2043,7 @@ const checkMemoryUsage = () => {
           await client.destroy();
           client = null;
           log('warn', 'Client destroyed due to memory pressure');
-          
+
           // Add human-like delay before restart
           const delay = humanBehavior.getRandomDelay(5000, 15000);
           setTimeout(startClient, delay);
@@ -1910,29 +2059,38 @@ const checkMemoryUsage = () => {
       global.gc();
     }
   }
+
+  // Schedule next memory check with randomized interval (6-8 minutes)
+  const nextInterval = (6 + Math.random() * 2) * 60 * 1000;
+  setTimeout(checkMemoryUsage, nextInterval);
 };
 
-setInterval(checkMemoryUsage, 7 * 60 * 1000); // Slightly increased interval
+// Start memory monitoring
+setTimeout(checkMemoryUsage, 7 * 60 * 1000);
 
-// Self-ping mechanism with human behavior
+// Self-ping mechanism with human behavior and randomized intervals
 let lastPingSent = 0;
 const selfPing = async () => {
   try {
     const now = Date.now();
-    if (now - lastPingSent > 6 * 60 * 1000) { // Increased ping interval
+    if (now - lastPingSent > 6 * 60 * 1000) {
       lastPingSent = now;
       const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-      
+
       // Add random delay before ping
       const delay = humanBehavior.getRandomDelay(0, 2000);
       await humanBehavior.sleep(delay);
-      
+
       await axios.get(`${appUrl}/ping`, { timeout: 5000 });
       log('debug', '🏓 Self-ping successful');
     }
   } catch (err) {
     log('warn', `Self-ping failed: ${err.message}`);
   }
+
+  // Schedule next self-ping with randomized interval (5-7 minutes)
+  const nextInterval = (5 + Math.random() * 2) * 60 * 1000;
+  setTimeout(selfPing, nextInterval);
 };
 
 app.use((req, res, next) => {
@@ -1942,7 +2100,8 @@ app.use((req, res, next) => {
   next();
 });
 
-setInterval(selfPing, 6 * 60 * 1000); // Increased to 6 minutes
+// Start self-ping
+setTimeout(selfPing, 6 * 60 * 1000);
 
 // Helper function to format uptime
 function formatUptime(ms) {
