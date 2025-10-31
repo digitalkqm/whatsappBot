@@ -137,27 +137,32 @@ Salesperson Name: [agent/salesperson name]
 Agent Number: [phone number]
 Banker Name: [banker name]</pre>
               </div>
-              <div class="trigger-example">
-                <strong>✅ Working Example:</strong><br>
-                <span style="white-space: pre-line; font-family: var(--font-mono); font-size: 0.85rem;">Valuation Request:
+              <div class="trigger-mandatory">
+                <strong>✅ Working Example & ⚠️ Mandatory Fields:</strong>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-top: var(--space-3);">
+                  <div class="trigger-example" style="background: transparent; padding: 0; border: none;">
+                    <strong>Example:</strong><br>
+                    <span style="white-space: pre-line; font-family: var(--font-mono); font-size: 0.85rem;">Valuation Request:
 
 Address: 123 Orchard Road #05-10
 Size: 1200 sqft
 Asking: $1.5M
 Salesperson Name: John Tan
 Agent Number: 98765432
-Banker Name: DBS Bank</span>
-              </div>
-              <div class="trigger-mandatory">
-                <strong>⚠️ Mandatory Fields:</strong>
-                <ul>
-                  <li><code>Address:</code> Property location</li>
-                  <li><code>Size:</code> Property size (sqft/sqm)</li>
-                  <li><code>Asking:</code> Asking price</li>
-                  <li><code>Salesperson Name:</code> Agent name</li>
-                  <li><code>Agent Number:</code> Phone number (auto-adds +65)</li>
-                  <li><code>Banker Name:</code> Routes to correct banker group</li>
-                </ul>
+Banker Name: DBS Ethan</span>
+                  </div>
+                  <div>
+                    <strong>Required Fields:</strong>
+                    <ul style="margin-top: var(--space-2);">
+                      <li><code>Address:</code> Property location</li>
+                      <li><code>Size:</code> Property size (sqft/sqm)</li>
+                      <li><code>Asking:</code> Asking price</li>
+                      <li><code>Salesperson Name:</code> Agent name</li>
+                      <li><code>Agent Number:</code> Phone number (auto-adds +65)</li>
+                      <li><code>Banker Name:</code> Routes to correct banker group</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
