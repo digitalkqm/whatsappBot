@@ -298,14 +298,14 @@ async function valuationRequestWorkflow(payload, engine) {
     console.log('✅ Forwarded to banker group:', banker.whatsapp_group_id);
     console.log('✅ Forward message ID:', sentMessage.id._serialized);
 
-    // Update with forward tracking
+    // Update with forward tracking (keep status as 'pending' until banker replies)
     const { error: updateError } = await supabase
       .from('valuation_requests')
       .update({
         forwarded_to_banker: true,
         forward_message_id: sentMessage.id._serialized,
-        forwarded_at: new Date().toISOString(),
-        status: 'forwarded'
+        forwarded_at: new Date().toISOString()
+        // Note: status remains 'pending' until banker replies
       })
       .eq('id', savedValuation.id);
 
