@@ -2057,6 +2057,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
         failed_count: 0,
         batch_size: batch_size || 1,
         delay_between_messages: delay_between_messages || 7000,
+        message_content: message,
         message_template: message,
         image_url: image_url || null,
         notification_contact: notification_contact || null,
