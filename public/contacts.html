@@ -8,84 +8,180 @@
   <title>Contact Manager - WhatsApp Bot</title>
   <link rel="stylesheet" href="/styles.css">
   <style>
-    .contact-lists-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-      gap: 1.5rem;
-      margin-top: 1.5rem;
+    /* Header Actions */
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
     }
 
-    .contact-list-card {
-      background: white;
+    .search-box {
+      position: relative;
+      flex: 1;
+      min-width: 250px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.75rem 1rem 0.75rem 2.5rem;
       border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    .search-box::before {
+      content: '🔍';
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* Contact Table Styles */
+    .contacts-container {
+      background: white;
       border-radius: 12px;
       padding: 1.5rem;
-      transition: all 0.3s ease;
-      cursor: pointer;
+      margin-top: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
-    .contact-list-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      border-color: #10b981;
-    }
-
-    .list-header {
+    .table-controls {
       display: flex;
       justify-content: space-between;
-      align-items: start;
+      align-items: center;
       margin-bottom: 1rem;
+      gap: 1rem;
+      flex-wrap: wrap;
     }
 
-    .list-title {
+    .bulk-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .selected-count {
+      padding: 0.5rem 1rem;
+      background: #eff6ff;
+      color: #1e40af;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .contacts-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    .contacts-table th,
+    .contacts-table td {
+      padding: 1rem;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .contacts-table th {
+      background: #f8fafc;
       font-weight: 600;
-      font-size: 1.1rem;
-      color: #1e293b;
-      margin-bottom: 0.5rem;
-    }
-
-    .list-description {
-      color: #64748b;
+      color: #334155;
       font-size: 0.85rem;
-      margin-bottom: 1rem;
-    }
-
-    .list-stats {
-      display: flex;
-      gap: 1.5rem;
-      padding: 1rem 0;
-      border-top: 1px solid #e2e8f0;
-    }
-
-    .stat-item {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .stat-label {
-      font-size: 0.75rem;
-      color: #64748b;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
-    .stat-value {
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: #1e293b;
-      margin-top: 0.25rem;
+    .contacts-table tr:hover {
+      background: #f8fafc;
     }
 
-    .source-badge {
+    .contacts-table tbody tr {
+      transition: background 0.2s;
+    }
+
+    .checkbox-cell {
+      width: 40px;
+    }
+
+    .contact-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .contact-name {
+      font-weight: 500;
+      color: #1e293b;
+    }
+
+    .contact-phone {
+      color: #64748b;
+      font-family: monospace;
+    }
+
+    .contact-email {
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+
+    .tier-badge {
       display: inline-block;
       padding: 0.25rem 0.75rem;
-      background: #dbeafe;
-      color: #1e40af;
-      border-radius: 20px;
+      border-radius: 12px;
       font-size: 0.75rem;
       font-weight: 500;
     }
 
+    .tier-vip {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .tier-premium {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .tier-standard {
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .icon-btn {
+      padding: 0.5rem;
+      background: transparent;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 1rem;
+    }
+
+    .icon-btn:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .icon-btn.edit:hover {
+      background: #eff6ff;
+      border-color: #3b82f6;
+      color: #3b82f6;
+    }
+
+    .icon-btn.delete:hover {
+      background: #fef2f2;
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    /* Upload Zone */
     .upload-zone {
       border: 2px dashed #cbd5e1;
       border-radius: 12px;
@@ -112,6 +208,31 @@
       margin-bottom: 1rem;
     }
 
+    .template-download {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #eff6ff;
+      border-radius: 8px;
+      border: 1px solid #dbeafe;
+    }
+
+    .template-download h4 {
+      margin: 0 0 0.5rem 0;
+      color: #1e40af;
+      font-size: 0.9rem;
+    }
+
+    .template-example {
+      background: white;
+      padding: 0.75rem;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+      color: #334155;
+    }
+
+    /* Modal Styles */
     .modal {
       display: none;
       position: fixed;
@@ -175,37 +296,11 @@
       font-size: 0.95rem;
     }
 
-    .contacts-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1rem;
-    }
-
-    .contacts-table th,
-    .contacts-table td {
-      padding: 0.75rem;
-      text-align: left;
-      border-bottom: 1px solid #e2e8f0;
-    }
-
-    .contacts-table th {
-      background: #f8fafc;
-      font-weight: 600;
-      color: #334155;
-    }
-
-    .contacts-table tr:hover {
-      background: #f8fafc;
-    }
-
-    .tag {
-      display: inline-block;
-      padding: 0.25rem 0.5rem;
-      background: #f1f5f9;
-      color: #475569;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      margin: 0.125rem;
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      color: #64748b;
+      font-size: 0.85rem;
     }
 
     .tabs {
@@ -246,7 +341,8 @@
       margin-bottom: 0.5rem;
     }
 
-    .contact-row input {
+    .contact-row input,
+    .contact-row select {
       flex: 1;
       padding: 0.5rem;
       border: 1px solid #e2e8f0;
@@ -257,35 +353,137 @@
       padding: 0.5rem 1rem;
       font-size: 0.85rem;
     }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #64748b;
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .pagination button {
+      padding: 0.5rem 1rem;
+      border: 1px solid #e2e8f0;
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .pagination button:hover:not(:disabled) {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pagination .page-info {
+      padding: 0.5rem 1rem;
+      color: #64748b;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <header role="banner">
       <h1>👥 Contact Manager</h1>
-      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+      <div class="header-actions">
         <nav role="navigation" aria-label="Main navigation" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
           <a href="/" class="nav-link" aria-label="Dashboard">🏠 Dashboard</a>
           <a href="/valuations.html" class="nav-link" aria-label="Valuations Management">📊 Valuations</a>
           <a href="/bankers.html" class="nav-link" aria-label="Banker Management">🏦 Bankers</a>
           <a href="/templates.html" class="nav-link" aria-label="Message Templates">📝 Templates</a>
         </nav>
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="Search contacts by name, phone, or email..." />
+        </div>
         <button id="createListBtn" class="btn btn-primary">+ Create Contact List</button>
+        <button id="downloadTemplateBtn" class="btn btn-secondary">📥 Download CSV Template</button>
       </div>
     </header>
 
     <main>
-      <!-- Contact Lists Grid -->
-      <div id="contactListsGrid" class="contact-lists-grid">
-        <div class="empty-state">
-          <div class="empty-state-icon">👥</div>
-          <p>No contact lists yet. Create your first list to get started!</p>
+      <!-- Contacts Table -->
+      <div class="contacts-container">
+        <div class="table-controls">
+          <div class="bulk-actions">
+            <span id="selectedCount" class="selected-count" style="display: none;">
+              <span id="selectedCountText">0 selected</span>
+            </span>
+            <button id="broadcastBtn" class="btn btn-success" style="display: none;">
+              📢 Broadcast Interest Rate Message
+            </button>
+            <button id="deleteSelectedBtn" class="btn btn-danger" style="display: none;">
+              🗑️ Delete Selected
+            </button>
+          </div>
+          <div>
+            <select id="tierFilter" class="form-control">
+              <option value="">All Tiers</option>
+              <option value="VIP">VIP</option>
+              <option value="Premium">Premium</option>
+              <option value="Standard">Standard</option>
+            </select>
+          </div>
+        </div>
+
+        <table class="contacts-table">
+          <thead>
+            <tr>
+              <th class="checkbox-cell">
+                <input type="checkbox" id="selectAll" class="contact-checkbox" title="Select all contacts" />
+              </th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Tier</th>
+              <th>List</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="contactsTableBody">
+            <tr>
+              <td colspan="7" class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                <p>No contacts found. Create a contact list or upload contacts to get started.</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="pagination" id="pagination" style="display: none;">
+          <button id="prevPage">← Previous</button>
+          <span class="page-info">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+          <button id="nextPage">Next →</button>
         </div>
       </div>
     </main>
   </div>
 
-  <!-- Create Contact List Modal -->
+  <!-- Create/Upload Contact List Modal -->
   <div id="createModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -317,8 +515,13 @@
             <div id="contactsContainer">
               <div class="contact-row">
                 <input type="text" placeholder="Name" class="contact-name">
-                <input type="text" placeholder="Phone (65xxxxxxxx)" class="contact-phone" required>
+                <input type="text" placeholder="Phone (65XXXXXXXX)" class="contact-phone" required>
                 <input type="email" placeholder="Email (optional)" class="contact-email">
+                <select class="contact-tier">
+                  <option value="Standard">Standard</option>
+                  <option value="Premium">Premium</option>
+                  <option value="VIP">VIP</option>
+                </select>
                 <button type="button" class="btn btn-danger btn-small" onclick="removeContactRow(this)">×</button>
               </div>
             </div>
@@ -340,14 +543,26 @@
             <input type="text" id="csvListName" required placeholder="e.g., Marketing Contacts">
           </div>
 
+          <div class="template-download">
+            <h4>CSV Format Requirements:</h4>
+            <div class="template-example">
+              name,phone,email,tier<br>
+              John Tan,6591234567,john@example.com,VIP<br>
+              Mary Lee,6598765432,mary@example.com,Premium
+            </div>
+            <small style="color: #64748b;">
+              • <strong>phone</strong> is required (format: 65XXXXXXXX without spaces)<br>
+              • <strong>name</strong>, <strong>email</strong>, and <strong>tier</strong> are optional<br>
+              • <strong>tier</strong> can be: VIP, Premium, or Standard (default: Standard)<br>
+              • First row must be headers
+            </small>
+          </div>
+
           <div class="upload-zone" id="csvUploadZone">
             <div class="upload-icon">📄</div>
             <h3>Drag & Drop CSV File</h3>
             <p style="color: #64748b; margin: 0.5rem 0;">or click to browse</p>
             <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
-            <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 1rem;">
-              CSV format: name, phone, email (first row as headers)
-            </p>
           </div>
 
           <div id="csvPreview" style="display: none; margin-top: 1rem;">
@@ -373,7 +588,7 @@
           <div class="form-group">
             <label for="spreadsheetId">Spreadsheet ID *</label>
             <input type="text" id="spreadsheetId" required placeholder="From Google Sheets URL">
-            <small style="color: #64748b;">
+            <small>
               Find in URL: https://docs.google.com/spreadsheets/d/<strong>SPREADSHEET_ID</strong>/edit
             </small>
           </div>
@@ -386,9 +601,7 @@
           <div class="form-group">
             <label for="sheetRange">Range</label>
             <input type="text" id="sheetRange" placeholder="Default: A2:D1000">
-            <small style="color: #64748b;">
-              Expected columns: Name, Phone, Email, Additional Info
-            </small>
+            <small>Expected columns: Name, Phone, Email, Tier</small>
           </div>
 
           <div class="form-actions">
@@ -400,25 +613,96 @@
     </div>
   </div>
 
-  <!-- View Contact List Modal -->
-  <div id="viewModal" class="modal">
+  <!-- Edit Contact Modal -->
+  <div id="editModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h2 id="viewModalTitle">Contact List</h2>
-        <button class="close-modal" onclick="closeViewModal()">×</button>
+        <h2>Edit Contact</h2>
+        <button class="close-modal" onclick="closeEditModal()">×</button>
       </div>
 
-      <div id="viewModalContent"></div>
+      <form id="editForm">
+        <input type="hidden" id="editContactId">
 
-      <div class="form-actions">
-        <button class="btn btn-secondary" onclick="closeViewModal()">Close</button>
-        <button class="btn btn-danger" onclick="deleteCurrentList()">Delete List</button>
-      </div>
+        <div class="form-group">
+          <label for="editName">Name *</label>
+          <input type="text" id="editName" required>
+        </div>
+
+        <div class="form-group">
+          <label for="editPhone">Phone *</label>
+          <input type="text" id="editPhone" required placeholder="65XXXXXXXX">
+          <small>Format: 65XXXXXXXX (no spaces or dashes)</small>
+        </div>
+
+        <div class="form-group">
+          <label for="editEmail">Email</label>
+          <input type="email" id="editEmail">
+        </div>
+
+        <div class="form-group">
+          <label for="editTier">Tier</label>
+          <select id="editTier">
+            <option value="Standard">Standard</option>
+            <option value="Premium">Premium</option>
+            <option value="VIP">VIP</option>
+          </select>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
     </div>
   </div>
 
-  <!-- Toast Notification Container -->
-  <div id="toastContainer" class="toast-container" role="alert" aria-live="assertive" aria-atomic="true"></div>
+  <!-- Broadcast Modal -->
+  <div id="broadcastModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>📢 Broadcast Interest Rate Message</h2>
+        <button class="close-modal" onclick="closeBroadcastModal()">×</button>
+      </div>
+
+      <form id="broadcastForm">
+        <div class="form-group">
+          <label>Selected Contacts</label>
+          <div id="selectedContactsList" style="max-height: 150px; overflow-y: auto; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="broadcastMessage">Message *</label>
+          <textarea id="broadcastMessage" rows="6" required placeholder="Enter your interest rate update message..."></textarea>
+          <small>Use {name} to personalize with contact's name</small>
+        </div>
+
+        <div class="form-group">
+          <label for="broadcastImage">Image URL (optional)</label>
+          <input type="url" id="broadcastImage" placeholder="https://example.com/image.jpg">
+          <small>Include an image to make your message more engaging</small>
+        </div>
+
+        <div class="form-group">
+          <label for="batchSize">Batch Size</label>
+          <input type="number" id="batchSize" value="10" min="1" max="50">
+          <small>Number of messages to send per batch (default: 10)</small>
+        </div>
+
+        <div class="form-group">
+          <label for="delayBetween">Delay Between Messages (seconds)</label>
+          <input type="number" id="delayBetween" value="7" min="3" max="30">
+          <small>Time to wait between each message (default: 7 seconds)</small>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeBroadcastModal()">Cancel</button>
+          <button type="submit" class="btn btn-success">Start Broadcast</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script src="/toast.js"></script>
   <script src="/contacts.js"></script>
