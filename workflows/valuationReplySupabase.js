@@ -102,14 +102,14 @@ async function valuationReplyWorkflow(payload, engine) {
     .eq('id', valuation.banker_id)
     .single();
 
-  // Update database with banker reply
+  // Update database with banker reply (status remains 'pending', tracked via timestamps)
   const { error: updateError } = await supabase
     .from('valuation_requests')
     .update({
       banker_reply_message_id: messageId,
       banker_reply_text: text,
-      banker_replied_at: new Date().toISOString(),
-      status: 'replied_by_banker'
+      banker_replied_at: new Date().toISOString()
+      // Note: status remains 'pending', state tracked via banker_replied_at timestamp
     })
     .eq('id', valuation.id);
 
@@ -169,7 +169,7 @@ async function valuationReplyWorkflow(payload, engine) {
     console.log('⚠️ No agent WhatsApp ID, skipping agent notification');
   }
 
-  // Update database with final tracking
+  // Update database with final tracking (status remains 'pending', tracked via completed_at)
   await supabase
     .from('valuation_requests')
     .update({
@@ -177,8 +177,8 @@ async function valuationReplyWorkflow(payload, engine) {
       final_reply_message_id: finalReplyMessageId,
       agent_notified: agentNotificationMessageId ? true : false,
       agent_notification_message_id: agentNotificationMessageId,
-      status: 'completed',
       completed_at: new Date().toISOString()
+      // Note: status remains 'pending', workflow completion tracked via completed_at timestamp
     })
     .eq('id', valuation.id);
 
