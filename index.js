@@ -1363,9 +1363,13 @@ async function startClient() {
   try {
     await client.initialize();
     log('info', '✅ WhatsApp client initialized.');
+
+    // Set client on workflow engine after initialization
+    workflowEngine.setClient(client);
   } catch (err) {
     log('error', `❌ WhatsApp client failed to initialize: ${err.message}`);
     client = null;
+    workflowEngine.setClient(null);
   }
 }
 

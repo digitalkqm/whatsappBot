@@ -80,10 +80,68 @@ function parseValuationTemplate(text) {
 }
 
 /**
+ * Validate parsed template data
+ * Returns { valid: boolean, missingFields: array }
+ */
+function validateValuationData(data) {
+  const missingFields = [];
+
+  // Check all required fields
+  if (!data.address || data.address.includes('[') || data.address.toLowerCase().includes('property address')) {
+    missingFields.push('Address');
+  }
+  if (!data.size || data.size.includes('[') || data.size.toLowerCase().includes('property size')) {
+    missingFields.push('Size');
+  }
+  if (!data.asking || data.asking.includes('[') || data.asking.toLowerCase().includes('asking price')) {
+    missingFields.push('Asking');
+  }
+  if (!data.salesperson_name || data.salesperson_name.includes('[') || data.salesperson_name.toLowerCase().includes('agent/salesperson')) {
+    missingFields.push('Salesperson Name');
+  }
+  if (!data.agent_number || data.agent_number.includes('[') || data.agent_number.toLowerCase().includes('phone number')) {
+    missingFields.push('Agent Number');
+  }
+  if (!data.banker_name_requested || data.banker_name_requested.includes('[') || data.banker_name_requested.toLowerCase().includes('banker name')) {
+    missingFields.push('Banker Name');
+  }
+
+  return {
+    valid: missingFields.length === 0,
+    missingFields
+  };
+}
+
+/**
+ * Format validation error message
+ */
+function formatValidationError(missingFields) {
+  return `❌ Valuation Request Incomplete
+
+Missing or invalid fields:
+${missingFields.map(field => `• ${field}`).join('\n')}
+
+Please use the complete template:
+
+Valuation Request:
+
+Address: [property address]
+Size: [property size in sqft]
+Asking: [asking price]
+Salesperson Name: [agent/salesperson name]
+Agent Number: [phone number]
+Banker Name: [banker name]
+
+All fields are mandatory and must have actual values (not placeholders).`;
+}
+
+/**
  * Route message to banker based on banker_name_requested
  */
 async function routeToBanker(bankerNameRequested) {
   const lowerName = bankerNameRequested.toLowerCase();
+
+  console.log(`🔍 Routing banker request: "${bankerNameRequested}" (lowercase: "${lowerName}")`);
 
   // Find banker by routing keywords (highest priority first)
   const { data: bankers, error } = await supabase
@@ -94,19 +152,38 @@ async function routeToBanker(bankerNameRequested) {
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('Error fetching bankers:', error);
+    console.error('❌ Error fetching bankers:', error);
     return null;
   }
+
+  if (!bankers || bankers.length === 0) {
+    console.error('❌ No active bankers found in database');
+    return null;
+  }
+
+  console.log(`📊 Found ${bankers.length} active banker(s):`);
+  bankers.forEach((b, idx) => {
+    console.log(`   ${idx + 1}. ${b.name} (${b.bank_name}) - Keywords: ${JSON.stringify(b.routing_keywords || [])} - Priority: ${b.priority || 0}`);
+  });
 
   // Find matching banker
   for (const banker of bankers) {
     const keywords = banker.routing_keywords || [];
-    if (keywords.some(keyword => lowerName.includes(keyword.toLowerCase()))) {
-      return banker;
+
+    for (const keyword of keywords) {
+      const keywordLower = keyword.toLowerCase();
+      if (lowerName.includes(keywordLower)) {
+        console.log(`✅ Match found! "${lowerName}" contains keyword "${keywordLower}" → Routing to: ${banker.name} (${banker.bank_name})`);
+        return banker;
+      }
     }
   }
 
   // Fallback: return first active banker
+  console.warn(`⚠️ No keyword match found for "${bankerNameRequested}"`);
+  console.warn(`⚠️ Using fallback: First active banker → ${bankers[0].name} (${bankers[0].bank_name})`);
+  console.warn(`💡 Tip: Add routing_keywords to banker "${bankerNameRequested}" in database to match this request`);
+
   return bankers.length > 0 ? bankers[0] : null;
 }
 
@@ -146,6 +223,17 @@ async function valuationRequestWorkflow(payload, engine) {
   }
 
   console.log('✅ Parsed valuation request:', parsed);
+
+  // Validate parsed data
+  const validation = validateValuationData(parsed);
+  if (!validation.valid) {
+    console.log('❌ Validation failed. Missing fields:', validation.missingFields);
+    const errorMessage = formatValidationError(validation.missingFields);
+    await message.reply(errorMessage);
+    return;
+  }
+
+  console.log('✅ Validation passed - all required fields present');
 
   // Route to banker
   const banker = await routeToBanker(parsed.banker_name_requested);

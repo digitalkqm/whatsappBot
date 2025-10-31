@@ -710,6 +710,100 @@ nav {
   color: var(--gray-900);
 }
 
+/* Template section styling */
+.trigger-template {
+  background: var(--gray-900);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: var(--space-4) 0;
+}
+
+.template-header {
+  background: var(--gray-800);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--gray-700);
+}
+
+.template-header strong {
+  color: white;
+  font-size: 0.875rem;
+}
+
+.btn-copy {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: 600;
+}
+
+.btn-copy:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-copy:active {
+  transform: translateY(0);
+}
+
+.trigger-template pre {
+  background: transparent;
+  color: #a9b7c6;
+  padding: var(--space-4);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.trigger-mandatory {
+  background: var(--warning-light);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--warning);
+  margin-top: var(--space-4);
+}
+
+.trigger-mandatory strong {
+  color: var(--gray-900);
+  display: block;
+  margin-bottom: var(--space-3);
+  font-size: 0.9rem;
+}
+
+.trigger-mandatory ul {
+  margin: 0;
+  padding-left: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trigger-mandatory li {
+  color: var(--gray-700);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.trigger-mandatory li code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--warning);
+  font-weight: 700;
+}
+
 /* Responsive adjustments for triggers */
 @media (max-width: 1024px) {
   .triggers-grid {

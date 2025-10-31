@@ -519,3 +519,48 @@ function showMessage(message, type) {
   const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
   alert(`${icon} ${message}`);
 }
+
+// Copy valuation template to clipboard
+function copyTemplate() {
+  const template = document.getElementById('valuationTemplate');
+  const text = template.textContent;
+
+  // Use modern clipboard API
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = '✅ Copied!';
+      btn.style.background = '#10b981';
+
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.style.background = '';
+      }, 2000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+// Fallback copy method for older browsers
+function fallbackCopy(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  try {
+    document.execCommand('copy');
+    alert('✅ Template copied to clipboard!');
+  } catch (err) {
+    alert('❌ Failed to copy. Please copy manually.');
+  }
+
+  document.body.removeChild(textarea);
+}

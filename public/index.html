@@ -105,11 +105,43 @@
                 <code>valuation request:</code>
               </div>
               <p class="trigger-description">
-                Messages containing this keyword will trigger the valuation request workflow (Supabase)
+                Post this complete template in WhatsApp group. All 6 fields are <strong>mandatory</strong>.
               </p>
+              <div class="trigger-template">
+                <div class="template-header">
+                  <strong>📋 Complete Template (Copy & Paste):</strong>
+                  <button class="btn-copy" onclick="copyTemplate()" title="Copy template">📋 Copy</button>
+                </div>
+                <pre id="valuationTemplate">Valuation Request:
+
+Address: [property address]
+Size: [property size in sqft]
+Asking: [asking price]
+Salesperson Name: [agent/salesperson name]
+Agent Number: [phone number]
+Banker Name: [banker name]</pre>
+              </div>
               <div class="trigger-example">
-                <strong>Example:</strong><br>
-                <span>"Valuation Request: Property at 123 Main St"</span>
+                <strong>✅ Working Example:</strong><br>
+                <span style="white-space: pre-line; font-family: var(--font-mono); font-size: 0.85rem;">Valuation Request:
+
+Address: 123 Orchard Road #05-10
+Size: 1200 sqft
+Asking: $1.5M
+Salesperson Name: John Tan
+Agent Number: 98765432
+Banker Name: DBS Bank</span>
+              </div>
+              <div class="trigger-mandatory">
+                <strong>⚠️ Mandatory Fields:</strong>
+                <ul>
+                  <li><code>Address:</code> Property location</li>
+                  <li><code>Size:</code> Property size (sqft/sqm)</li>
+                  <li><code>Asking:</code> Asking price</li>
+                  <li><code>Salesperson Name:</code> Agent name</li>
+                  <li><code>Agent Number:</code> Phone number (auto-adds +65)</li>
+                  <li><code>Banker Name:</code> Routes to correct banker group</li>
+                </ul>
               </div>
             </div>
           </div>

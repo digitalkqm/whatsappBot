@@ -6,6 +6,13 @@ class WorkflowEngine {
     this.supabase = createClient(supabaseUrl, supabaseKey);
     this.activeWorkflows = new Map();
     this.workflowHandlers = new Map();
+    this.client = null; // WhatsApp client will be set by index.js
+  }
+
+  // Set WhatsApp client (called from index.js after client is initialized)
+  setClient(client) {
+    this.client = client;
+    console.log('✅ WorkflowEngine: WhatsApp client set');
   }
 
   // Register a workflow handler
