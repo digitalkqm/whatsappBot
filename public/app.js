@@ -77,6 +77,18 @@ function connectWebSocket() {
 function handleWebSocketMessage(data) {
   if (data.type === 'qr') {
     console.log('Received QR code via WebSocket', data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : 'no timestamp');
+
+    // Show QR section if it's hidden (re-authentication needed)
+    const qrSection = document.getElementById('qrSection');
+    const loggingSection = document.getElementById('loggingSection');
+
+    if (qrSection && qrSection.style.display === 'none') {
+      qrSection.style.display = 'block';
+      if (loggingSection) {
+        loggingSection.style.display = 'none';
+      }
+    }
+
     displayQRCode(data.qr);
   } else if (data.type === 'authenticated') {
     console.log('Authentication in progress...');
@@ -88,6 +100,8 @@ function handleWebSocketMessage(data) {
     updateStatus(data.status);
   } else if (data.type === 'workflow') {
     updateWorkflows(data.workflows);
+  } else if (data.type === 'log') {
+    addLogEntry(data);
   }
 }
 
@@ -112,11 +126,6 @@ function updateConnectionStatus(status) {
 
 // Setup button event listeners
 function setupEventListeners() {
-  const refreshBtn = document.getElementById('refreshQR');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', fetchQRCode);
-  }
-
   // Optional buttons (only add listeners if they exist)
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) logoutBtn.addEventListener('click', logout);
@@ -132,6 +141,9 @@ function setupEventListeners() {
 
   const restartBotBtn = document.getElementById('restartBot');
   if (restartBotBtn) restartBotBtn.addEventListener('click', restartBot);
+
+  const clearLogsBtn = document.getElementById('clearLogs');
+  if (clearLogsBtn) clearLogsBtn.addEventListener('click', clearLogs);
 }
 
 // Fetch health status
@@ -179,6 +191,17 @@ async function checkQRStatus() {
     } else if (data.state === 'CONNECTED') {
       showAuthenticationSuccess();
     } else if (data.qr) {
+      // Need to re-authenticate - show QR section
+      const qrSection = document.getElementById('qrSection');
+      const loggingSection = document.getElementById('loggingSection');
+
+      if (qrSection && qrSection.style.display === 'none') {
+        qrSection.style.display = 'block';
+        if (loggingSection) {
+          loggingSection.style.display = 'none';
+        }
+      }
+
       // New QR code available - update display
       const currentQR = document.getElementById('qrCodeImage').src;
       if (currentQR !== data.qr) {
@@ -306,21 +329,18 @@ function showAuthenticating() {
 
 // Show authentication success
 function showAuthenticationSuccess() {
-  const placeholder = document.getElementById('qrPlaceholder');
-  const image = document.getElementById('qrCodeImage');
+  // Hide QR code section
+  const qrSection = document.getElementById('qrSection');
+  if (qrSection) {
+    qrSection.style.display = 'none';
+  }
 
-  image.style.display = 'none';
-  placeholder.style.display = 'flex';
-  placeholder.className = 'qr-placeholder success';
-  placeholder.innerHTML = `
-    <div class="qr-status">
-      <div class="success-icon">✅</div>
-      <p>Successfully Connected!</p>
-      <small>Your WhatsApp bot is ready</small>
-    </div>
-  `;
+  // Show logging section
+  const loggingSection = document.getElementById('loggingSection');
+  if (loggingSection) {
+    loggingSection.style.display = 'block';
+  }
 
-  updateQRInstructions('success');
   clearQRExpiryTimer();
 
   // Trigger confetti or celebration animation
@@ -366,12 +386,14 @@ function clearQRExpiryTimer() {
 // Celebration animation
 function celebrateSuccess() {
   // Simple celebration - could be enhanced with confetti library
-  const container = document.querySelector('.qr-container');
-  container.classList.add('celebrate');
+  const loggingSection = document.getElementById('loggingSection');
+  if (loggingSection) {
+    loggingSection.classList.add('celebrate');
 
-  setTimeout(() => {
-    container.classList.remove('celebrate');
-  }, 2000);
+    setTimeout(() => {
+      loggingSection.classList.remove('celebrate');
+    }, 2000);
+  }
 }
 
 // Update status display
@@ -563,4 +585,64 @@ function fallbackCopy(text) {
   }
 
   document.body.removeChild(textarea);
+}
+
+// Add log entry to the logging display
+const MAX_LOG_ENTRIES = 200; // Keep last 200 log entries
+function addLogEntry(logData) {
+  const container = document.getElementById('logContainer');
+  if (!container) return;
+
+  // Clear initial placeholder message if present
+  if (container.querySelector('.log-entry .log-time')?.textContent === '[Waiting for logs...]') {
+    container.innerHTML = '';
+  }
+
+  // Create log entry element
+  const logEntry = document.createElement('div');
+  logEntry.className = 'log-entry';
+  logEntry.style.cssText = 'padding: 0.5rem; border-bottom: 1px solid var(--border-color); display: flex; gap: 1rem;';
+
+  // Format timestamp
+  const time = new Date(logData.timestamp).toLocaleTimeString();
+
+  // Get level color
+  const levelColors = {
+    debug: '#6b7280',
+    info: '#3b82f6',
+    warn: '#f59e0b',
+    error: '#ef4444',
+    log: '#10b981'
+  };
+  const levelColor = levelColors[logData.level] || '#6b7280';
+
+  logEntry.innerHTML = `
+    <span class="log-time" style="color: var(--text-secondary); min-width: 80px;">[${time}]</span>
+    <span class="log-level" style="color: ${levelColor}; font-weight: 600; min-width: 60px; text-transform: uppercase;">${logData.level}</span>
+    <span class="log-message" style="color: var(--text-primary); flex: 1;">${logData.message}</span>
+  `;
+
+  // Add to container
+  container.appendChild(logEntry);
+
+  // Auto-scroll to bottom
+  container.scrollTop = container.scrollHeight;
+
+  // Remove old entries if exceeding max
+  while (container.children.length > MAX_LOG_ENTRIES) {
+    container.removeChild(container.firstChild);
+  }
+}
+
+// Clear logs
+function clearLogs() {
+  const container = document.getElementById('logContainer');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="log-entry" style="color: var(--text-secondary); padding: 0.5rem;">
+      <span class="log-time">[Logs cleared]</span>
+      <span class="log-message">Waiting for new activity...</span>
+    </div>
+  `;
 }

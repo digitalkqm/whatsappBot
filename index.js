@@ -514,6 +514,19 @@ const log = (level, message, ...args) => {
   const timestamp = new Date().toISOString();
   const formatted = `[${timestamp}] [${level.toUpperCase()}] [${SESSION_ID}] ${message}`;
   console[level](formatted, ...args);
+
+  // Broadcast logs to WebSocket clients for dashboard display
+  try {
+    broadcastToClients({
+      type: 'log',
+      level: level,
+      message: message,
+      timestamp: timestamp,
+      session: SESSION_ID
+    });
+  } catch (err) {
+    // Silent fail to avoid recursive logging
+  }
 };
 
 // Global QR code storage for dashboard

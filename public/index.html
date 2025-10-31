@@ -29,10 +29,7 @@
     <main role="main">
       <!-- QR Code Section -->
       <section class="card" id="qrSection" aria-labelledby="qr-heading">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
-          <h2 id="qr-heading" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">📱 QR Code Authentication</h2>
-          <button id="refreshQR" class="btn btn-secondary" aria-label="Refresh QR Code">🔄 Refresh QR Code</button>
-        </div>
+        <h2 id="qr-heading">📱 QR Code Authentication</h2>
 
         <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-8); align-items: center;">
           <!-- Instructions on the left -->
@@ -53,6 +50,25 @@
               <p>Waiting for QR code...</p>
             </div>
             <img id="qrCodeImage" class="qr-image" style="display: none;" alt="WhatsApp QR Code for authentication">
+          </div>
+        </div>
+      </section>
+
+      <!-- Logging Section (Hidden by default, shown when connected) -->
+      <section class="card" id="loggingSection" style="display: none;" aria-labelledby="logging-heading">
+        <h2 id="logging-heading">📋 Bot Activity Logs</h2>
+        <div style="margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center;">
+          <p style="color: var(--text-secondary); margin: 0;">
+            Real-time activity logs from your WhatsApp bot
+          </p>
+          <button id="clearLogs" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+            🗑️ Clear Logs
+          </button>
+        </div>
+        <div id="logContainer" class="log-container" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: var(--space-4); max-height: 500px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.875rem;">
+          <div class="log-entry" style="color: var(--text-secondary); padding: 0.5rem;">
+            <span class="log-time">[Waiting for logs...]</span>
+            <span class="log-message">Bot activity will appear here</span>
           </div>
         </div>
       </section>
