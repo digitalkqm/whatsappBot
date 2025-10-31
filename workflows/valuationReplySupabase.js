@@ -149,11 +149,15 @@ async function valuationReplyWorkflow(payload, engine) {
     text
   );
 
-  // Send to requester group
+  // Send to requester group via message queue with CRITICAL priority
   let finalReplyMessageId = null;
   try {
-    const requesterChat = await engine.client.getChatById(valuation.requester_group_id);
-    const sentMessage = await requesterChat.sendMessage(requesterMessage);
+    console.log('📤 Queuing valuation reply [critical] to requester group:', valuation.requester_group_id);
+    const sentMessage = await engine.messageQueue.send(
+      valuation.requester_group_id,
+      requesterMessage,
+      'critical'
+    );
     finalReplyMessageId = sentMessage.id._serialized;
 
     console.log('✅ Sent reply to requester group:', valuation.requester_group_id);
@@ -163,14 +167,18 @@ async function valuationReplyWorkflow(payload, engine) {
     console.error('❌ Error sending to requester group:', requesterError);
   }
 
-  // Send to agent private chat (ONLY if not a question)
+  // Send to agent private chat (ONLY if not a question) via message queue with CRITICAL priority
   let agentNotificationMessageId = null;
   if (isQuestion) {
     console.log('⚠️ Banker asked a question - NOT forwarding to agent contact');
   } else if (valuation.agent_whatsapp_id) {
     try {
-      const agentChat = await engine.client.getChatById(valuation.agent_whatsapp_id);
-      const sentMessage = await agentChat.sendMessage(agentMessage);
+      console.log('📤 Queuing agent notification [critical] to agent:', valuation.agent_whatsapp_id);
+      const sentMessage = await engine.messageQueue.send(
+        valuation.agent_whatsapp_id,
+        agentMessage,
+        'critical'
+      );
       agentNotificationMessageId = sentMessage.id._serialized;
 
       console.log('✅ Sent notification to agent:', valuation.agent_whatsapp_id);

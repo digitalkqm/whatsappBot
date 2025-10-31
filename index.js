@@ -11,6 +11,7 @@ const interestRateWorkflow = require('./workflows/interestRate');
 const valuationWorkflow = require('./workflows/valuation');
 const { valuationRequestWorkflow } = require('./workflows/valuationRequestSupabase');
 const { valuationReplyWorkflow } = require('./workflows/valuationReplySupabase');
+const ratePackageUpdateWorkflow = require('./workflows/ratePackageUpdate');
 const WorkflowAPI = require('./api/workflowAPI');
 const TemplateAPI = require('./api/templateAPI');
 const ContactAPI = require('./api/contactAPI');
@@ -18,6 +19,7 @@ const BroadcastContactAPI = require('./api/broadcastContactAPI');
 const ValuationAPI = require('./api/valuationAPI');
 const BankerAPI = require('./api/bankerAPI');
 const ImageUploadAPI = require('./api/imageUploadAPI');
+const MessageSendQueue = require('./utils/messageSendQueue');
 const multer = require('multer');
 
 // Puppeteer stealth configuration to avoid WhatsApp detection
@@ -455,6 +457,11 @@ class HumanBehaviorManager {
         await valuationReplyWorkflow(payload, workflowEngine);
       }
 
+      if (payload.messageType === 'rate_package_update') {
+        log('info', `📦 Executing rate package update workflow (n8n webhook)${groupInfo}`);
+        await workflowEngine.executeWorkflow('rate_package_update', payload);
+      }
+
       if (payload.messageType === 'valuation') {
         log('info', `📊 Executing old valuation workflow${groupInfo}`);
         await workflowEngine.executeWorkflow('valuation', payload);
@@ -501,6 +508,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Initialize Workflow Engine
 const workflowEngine = new WorkflowEngine(SUPABASE_URL, SUPABASE_ANON_KEY);
 workflowEngine.registerWorkflow('interest_rate', interestRateWorkflow);
+workflowEngine.registerWorkflow('rate_package_update', ratePackageUpdateWorkflow); // n8n webhook for rate packages
 workflowEngine.registerWorkflow('valuation', valuationWorkflow); // Old workflow
 workflowEngine.registerWorkflow('valuation_request', valuationRequestWorkflow); // New Supabase workflow
 workflowEngine.registerWorkflow('valuation_reply', valuationReplyWorkflow); // New Supabase reply workflow
@@ -1023,6 +1031,7 @@ async function safelyTriggerSessionSave(client) {
 
 const supabaseStore = new SupabaseStore(supabase, SESSION_ID);
 let client = null;
+let messageSendQueue = null;
 
 function createWhatsAppClient() {
   try {
@@ -1348,8 +1357,10 @@ async function handleIncomingMessage(msg) {
 
   const isBankRatesUpdateMessage = text.toLowerCase().includes('update bank rates');
 
+  const isRatePackageUpdate = text.toLowerCase().includes('rate package update:');
+
   // Skip if message doesn't match any trigger conditions
-  if (!isValuationRequest && !isValuationReply && !isInterestRateMessage && !isBankRatesUpdateMessage) {
+  if (!isValuationRequest && !isValuationReply && !isInterestRateMessage && !isBankRatesUpdateMessage && !isRatePackageUpdate) {
     log('info', `🚫 Ignored message - no trigger keywords found [Group: ${groupId}]`);
     return;
   }
@@ -1371,6 +1382,10 @@ async function handleIncomingMessage(msg) {
     log('info', `🏦 Bank rates update message detected [Group: ${groupId}]`);
   }
 
+  if (isRatePackageUpdate) {
+    log('info', `📦 Rate package update detected (n8n webhook) [Group: ${groupId}]`);
+  }
+
   // Memory logging every 50 messages
   messageCount++;
   if (messageCount % 50 === 0) {
@@ -1384,12 +1399,14 @@ async function handleIncomingMessage(msg) {
     }
   }
 
-  // Determine message type with priority: valuation_reply > valuation_request > bank_rates_update > interest_rate
+  // Determine message type with priority: valuation_reply > valuation_request > rate_package_update > bank_rates_update > interest_rate
   let messageType;
   if (isValuationReply) {
     messageType = 'valuation_reply';
   } else if (isValuationRequest) {
     messageType = 'valuation_request';
+  } else if (isRatePackageUpdate) {
+    messageType = 'rate_package_update';
   } else if (isBankRatesUpdateMessage) {
     messageType = 'bank_rates_update';
   } else {
@@ -1440,8 +1457,13 @@ async function startClient() {
     await Promise.race([initPromise, timeoutPromise]);
     log('info', '✅ WhatsApp client initialized successfully.');
 
+    // Initialize message send queue
+    messageSendQueue = new MessageSendQueue(client);
+    log('info', '📬 Message send queue initialized with priority system');
+
     // Set client on workflow engine after initialization
     workflowEngine.setClient(client);
+    workflowEngine.setMessageQueue(messageSendQueue);
   } catch (err) {
     log('error', `❌ WhatsApp client initialization failed: ${err.message}`);
 
@@ -1584,27 +1606,31 @@ app.get('/workflows', (_, res) => {
 
 // Enhanced send message endpoint with human behavior
 app.post('/send-message', async (req, res) => {
-  const { jid, groupId, message, imageUrl } = req.body;
-  
+  const { jid, groupId, message, imageUrl, priority = 'normal' } = req.body;
+
   // Support both jid and groupId parameters
   const targetId = jid || groupId;
 
   if (!targetId || (!message && !imageUrl)) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'Missing target ID (jid/groupId) or message content (message/imageUrl)' 
+    return res.status(400).json({
+      success: false,
+      error: 'Missing target ID (jid/groupId) or message content (message/imageUrl)'
     });
   }
 
-  if (!client) {
-    return res.status(503).json({ 
-      success: false, 
-      error: 'WhatsApp client not ready' 
+  if (!client || !messageSendQueue) {
+    return res.status(503).json({
+      success: false,
+      error: 'WhatsApp client or message queue not ready'
     });
   }
 
-  // Check rate limits for sending messages
-  if (!humanBehavior.canProcessMessage()) {
+  // Validate priority
+  const validPriorities = ['critical', 'high', 'normal', 'low'];
+  const messagePriority = validPriorities.includes(priority) ? priority : 'normal';
+
+  // Check rate limits for sending messages (skip for critical priority)
+  if (messagePriority !== 'critical' && !humanBehavior.canProcessMessage()) {
     return res.status(429).json({
       success: false,
       error: 'Rate limit exceeded or bot is on break'
@@ -1632,53 +1658,33 @@ app.post('/send-message', async (req, res) => {
       }
     }
 
-    // Add human-like delay before sending
-    const delay = humanBehavior.getRandomDelay(2000, 8000);
-    await humanBehavior.sleep(delay);
-
-    // Simulate typing (if supported)
-    try {
-      const chat = await client.getChatById(formattedId);
-      if (chat && typeof chat.sendStateTyping === 'function') {
-        await chat.sendStateTyping();
-        log('info', '⌨️ Typing indicator sent');
-        
-        // Random typing duration
-        const typingDuration = humanBehavior.getRandomDelay(
-          HUMAN_CONFIG.MIN_TYPING_DURATION, 
-          HUMAN_CONFIG.MAX_TYPING_DURATION
-        );
-        await humanBehavior.sleep(typingDuration);
-      }
-    } catch (typingErr) {
-      log('warn', `Failed to send typing indicator: ${typingErr.message}`);
-    }
-
+    // Prepare message for queue
     let sentMessage;
+    let messageOptions = {};
 
-    // Send media if imageUrl provided
+    // Prepare media if imageUrl provided
     if (imageUrl) {
       try {
         const media = await MessageMedia.fromUrl(imageUrl);
-        sentMessage = await client.sendMessage(formattedId, media, {
-          caption: message || '',
-        });
-        log('info', `📸 Image message sent to ${formattedId}`);
+        messageOptions.media = media;
+        log('info', `📸 Image prepared for queue [${messagePriority}] to ${formattedId}`);
       } catch (mediaErr) {
-        log('error', `Failed to send image: ${mediaErr.message}`);
+        log('error', `Failed to prepare image: ${mediaErr.message}`);
         // Fallback to text message if image fails
-        if (message) {
-          sentMessage = await client.sendMessage(formattedId, message);
-          log('info', `📝 Fallback text message sent to ${formattedId}`);
-        } else {
+        if (!message) {
           throw mediaErr;
         }
       }
-    } else {
-      // Send plain text message
-      sentMessage = await client.sendMessage(formattedId, message);
-      log('info', `📝 Text message sent to ${formattedId}`);
     }
+
+    // Send via message queue with priority
+    log('info', `📤 Queuing message [${messagePriority}] to ${formattedId}`);
+    sentMessage = await messageSendQueue.send(
+      formattedId,
+      message || '',
+      messagePriority,
+      messageOptions
+    );
 
     // Record the action
     humanBehavior.recordMessageProcessed(`sent_${Date.now()}`);
@@ -2231,11 +2237,12 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             .eq('execution_id', execution.id)
             .eq('contact_id', contact.id);
 
-          // Send message via internal API
+          // Send message via internal API with low priority (broadcasts are bulk operations)
           const response = await axios.post(`${process.env.APP_URL || 'http://localhost:3000'}/send-message`, {
             jid,
             message: personalizedMessage,
-            imageUrl: image_url || null
+            imageUrl: image_url || null,
+            priority: 'low'  // Low priority for broadcast messages
           });
 
           if (response.status === 200) {

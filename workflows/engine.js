@@ -7,12 +7,19 @@ class WorkflowEngine {
     this.activeWorkflows = new Map();
     this.workflowHandlers = new Map();
     this.client = null; // WhatsApp client will be set by index.js
+    this.messageQueue = null; // Message send queue will be set by index.js
   }
 
   // Set WhatsApp client (called from index.js after client is initialized)
   setClient(client) {
     this.client = client;
     console.log('✅ WorkflowEngine: WhatsApp client set');
+  }
+
+  // Set message send queue (called from index.js after queue is initialized)
+  setMessageQueue(queue) {
+    this.messageQueue = queue;
+    console.log('✅ WorkflowEngine: Message send queue set');
   }
 
   // Register a workflow handler

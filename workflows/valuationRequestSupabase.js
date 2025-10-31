@@ -290,8 +290,13 @@ async function valuationRequestWorkflow(payload, engine) {
   const bankerMessage = formatBankerMessage(parsed.address, parsed.size, parsed.asking);
 
   try {
-    const bankerChat = await engine.client.getChatById(banker.whatsapp_group_id);
-    const sentMessage = await bankerChat.sendMessage(bankerMessage);
+    // Send via message queue with CRITICAL priority (customer-facing workflow)
+    console.log('📤 Queuing valuation request [critical] to banker group:', banker.whatsapp_group_id);
+    const sentMessage = await engine.messageQueue.send(
+      banker.whatsapp_group_id,
+      bankerMessage,
+      'critical'
+    );
 
     console.log('✅ Forwarded to banker group:', banker.whatsapp_group_id);
     console.log('✅ Forward message ID:', sentMessage.id._serialized);
