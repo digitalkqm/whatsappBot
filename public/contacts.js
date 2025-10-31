@@ -460,7 +460,8 @@ async function handleCSVSubmit(e) {
     const result = await response.json();
 
     if (result.success) {
-      showNotification(`Successfully imported ${result.data.total_count} contacts`, 'success');
+      const message = result.message || `Successfully imported ${result.data.count} contacts`;
+      showNotification(message, 'success');
       closeCreateModal();
       await loadAllContacts();
     } else {

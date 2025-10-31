@@ -114,7 +114,7 @@ class BroadcastContactAPI {
 
       if (listError) throw listError;
 
-      // Insert contacts into broadcast_contacts
+      // Insert contacts into broadcast_contacts using upsert
       const contactsToInsert = contacts.map(contact => ({
         list_id: list.id,
         name: contact.name || '',
@@ -126,9 +126,13 @@ class BroadcastContactAPI {
         is_active: true
       }));
 
+      // Use upsert to handle duplicates: update if exists, insert if new
       const { data: insertedContacts, error: contactsError } = await this.supabase
         .from('broadcast_contacts')
-        .insert(contactsToInsert)
+        .upsert(contactsToInsert, {
+          onConflict: 'list_id,phone', // Unique constraint columns
+          ignoreDuplicates: false // Update existing records
+        })
         .select();
 
       if (contactsError) {
@@ -241,6 +245,8 @@ class BroadcastContactAPI {
       }
 
       const contacts = [];
+      const seenPhones = new Set(); // Track duplicates within CSV
+      let duplicatesInCSV = 0;
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -263,6 +269,19 @@ class BroadcastContactAPI {
 
         // Validate phone exists
         if (contact.phone) {
+          // Normalize phone number
+          const normalizedPhone = this.normalizePhone(contact.phone);
+
+          // Check for duplicates within CSV
+          if (seenPhones.has(normalizedPhone)) {
+            duplicatesInCSV++;
+            console.log(`⚠️  Skipping duplicate phone in CSV: ${contact.phone} (row ${i + 1})`);
+            continue; // Skip this duplicate
+          }
+
+          seenPhones.add(normalizedPhone);
+          contact.phone = normalizedPhone; // Use normalized phone
+
           // Validate tier value
           if (contact.tier && !['VIP', 'Premium', 'Standard'].includes(contact.tier)) {
             contact.tier = 'Standard';
@@ -275,8 +294,12 @@ class BroadcastContactAPI {
         throw new Error('No valid contacts found in CSV');
       }
 
+      if (duplicatesInCSV > 0) {
+        console.log(`⚠️  Skipped ${duplicatesInCSV} duplicate phone numbers within CSV`);
+      }
+
       // Create contact list with contacts
-      return await this.createContactList({
+      const result = await this.createContactList({
         name: listName,
         description: description || `Imported from CSV on ${new Date().toISOString()}`,
         contacts,
@@ -286,6 +309,14 @@ class BroadcastContactAPI {
           original_count: contacts.length
         }
       });
+
+      // Add duplicate count to result
+      if (result.success && duplicatesInCSV > 0) {
+        result.message = `Contact list created: ${contacts.length} contacts imported, ${duplicatesInCSV} duplicates within CSV were skipped`;
+        result.data.duplicates_skipped = duplicatesInCSV;
+      }
+
+      return result;
 
     } catch (error) {
       console.error('❌ Error importing from CSV:', error.message);
