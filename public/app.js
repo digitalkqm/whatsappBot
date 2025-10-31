@@ -11,6 +11,19 @@ let totalMessageCount = 0; // Track total messages during session
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Dashboard loaded');
 
+  // Check if previously authenticated and restore UI state
+  const wasAuthenticated = localStorage.getItem('whatsapp_authenticated') === 'true';
+
+  if (wasAuthenticated) {
+    console.log('Restoring authenticated state from localStorage');
+    // Show logging section immediately for better UX
+    const qrSection = document.getElementById('qrSection');
+    const loggingSection = document.getElementById('loggingSection');
+
+    if (qrSection) qrSection.style.display = 'none';
+    if (loggingSection) loggingSection.style.display = 'block';
+  }
+
   // Setup WebSocket for real-time updates
   connectWebSocket();
 
@@ -82,6 +95,10 @@ function connectWebSocket() {
 function handleWebSocketMessage(data) {
   if (data.type === 'qr') {
     console.log('Received QR code via WebSocket', data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : 'no timestamp');
+
+    // Clear authentication state - re-authentication needed
+    localStorage.removeItem('whatsapp_authenticated');
+    console.log('Authentication state cleared - re-authentication required');
 
     // Show QR section if it's hidden (re-authentication needed)
     const qrSection = document.getElementById('qrSection');
@@ -166,16 +183,16 @@ async function fetchHealthStatus() {
 
 // Fetch QR code
 async function fetchQRCode() {
-  showQRLoading();
-
+  // Don't show loading immediately - check auth status first
   try {
     const response = await fetch('/qr-code');
     const data = await response.json();
 
-    if (data.qr) {
-      displayQRCode(data.qr);
-    } else if (data.authenticated) {
+    // Check authentication status first
+    if (data.authenticated || data.state === 'CONNECTED') {
       showAuthenticationSuccess();
+    } else if (data.qr) {
+      displayQRCode(data.qr);
     } else {
       showQRWaiting();
     }
@@ -348,6 +365,10 @@ function showAuthenticating() {
 
 // Show authentication success
 function showAuthenticationSuccess() {
+  // Save authentication state to localStorage for persistence
+  localStorage.setItem('whatsapp_authenticated', 'true');
+  console.log('Authentication state saved to localStorage');
+
   // Hide QR code section
   const qrSection = document.getElementById('qrSection');
   if (qrSection) {
@@ -472,7 +493,20 @@ async function logout() {
     const data = await response.json();
 
     if (data.success) {
+      // Clear authentication state from localStorage
+      localStorage.removeItem('whatsapp_authenticated');
+      console.log('Authentication state cleared from localStorage');
+
       showMessage('Session cleared. Please restart the bot.', 'success');
+
+      // Show QR section again after logout
+      setTimeout(() => {
+        const qrSection = document.getElementById('qrSection');
+        const loggingSection = document.getElementById('loggingSection');
+
+        if (qrSection) qrSection.style.display = 'block';
+        if (loggingSection) loggingSection.style.display = 'none';
+      }, 1000);
     } else {
       showMessage('Failed to clear session', 'error');
     }
