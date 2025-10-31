@@ -2081,10 +2081,15 @@ const server = app.listen(PORT, () => {
   log('info', `📱 Dashboard: http://localhost:${PORT}`);
   log('info', `🤖 Bot Version: ${BOT_VERSION}`);
   log('info', `🧠 Human behavior enabled with smart timing and rate limiting`);
-  log('info', '💻 Starting WhatsApp client in 5 seconds...');
+  // Only delay in development for human-like behavior, start immediately in production
+  const startDelay = process.env.NODE_ENV === 'production' ? 0 : humanBehavior.getRandomDelay(3000, 8000);
 
-  // Add random delay before starting client
-  const startDelay = humanBehavior.getRandomDelay(3000, 8000);
+  if (startDelay > 0) {
+    log('info', `💻 Starting WhatsApp client in ${Math.round(startDelay/1000)} seconds...`);
+  } else {
+    log('info', '💻 Starting WhatsApp client immediately...');
+  }
+
   setTimeout(startClient, startDelay);
 });
 

@@ -20,12 +20,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial data fetch
   fetchHealthStatus();
   fetchQRCode();
+  fetchWorkflows();
 
   // Poll for updates every 10 seconds
   setInterval(fetchHealthStatus, 10000);
 
   // Check QR code status every 3 seconds
   setInterval(checkQRStatus, 3000);
+
+  // Poll for workflow updates every 5 seconds
+  setInterval(fetchWorkflows, 5000);
 });
 
 // WebSocket connection for real-time updates
@@ -178,6 +182,20 @@ async function fetchQRCode() {
   } catch (error) {
     console.error('Failed to fetch QR code:', error);
     showQRError('Failed to fetch QR code. Retrying...');
+  }
+}
+
+// Fetch workflows
+async function fetchWorkflows() {
+  try {
+    const response = await fetch('/workflows');
+    const data = await response.json();
+
+    if (data.active) {
+      updateWorkflows(data.active);
+    }
+  } catch (error) {
+    console.error('Failed to fetch workflows:', error);
   }
 }
 
