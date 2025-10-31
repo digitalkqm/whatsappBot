@@ -172,11 +172,7 @@ nav {
   background: var(--gradient-primary);
   opacity: 0;
   transition: opacity var(--transition-base);
-}
-
-.nav-link > * {
-  position: relative;
-  z-index: 1;
+  z-index: -1;
 }
 
 .nav-link:hover {
