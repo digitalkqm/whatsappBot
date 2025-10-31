@@ -16,7 +16,7 @@
         <nav role="navigation" aria-label="Main navigation" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
           <a href="/valuations.html" class="nav-link" aria-label="Valuations Management">📊 Valuations</a>
           <a href="/bankers.html" class="nav-link" aria-label="Banker Management">🏦 Bankers</a>
-          <a href="/contacts.html" class="nav-link" aria-label="Contact Management">👥 Contacts</a>
+          <a href="/contacts.html" class="nav-link" aria-label="Broadcast Management">📢 Broadcast</a>
         </nav>
         <div class="status-badge" id="connectionStatus" role="status" aria-live="polite">
           <span class="status-dot" aria-hidden="true"></span>
@@ -144,40 +144,6 @@ Banker Name: DBS Ethan</span>
           </div>
 
           <div class="trigger-item">
-            <div class="trigger-icon">📨</div>
-            <div class="trigger-content">
-              <h3>Banker Reply</h3>
-              <div class="trigger-keyword">
-                <code>Reply/Quote to Message</code>
-              </div>
-              <p class="trigger-description">
-                Messages that reply to (quote) another message will trigger the valuation reply workflow
-              </p>
-              <div class="trigger-example">
-                <strong>Example:</strong><br>
-                <span>Any message sent as a reply to a previous message</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="trigger-item">
-            <div class="trigger-icon">💰</div>
-            <div class="trigger-content">
-              <h3>Interest Rate Message</h3>
-              <div class="trigger-keyword">
-                <code>keyquest mortgage team</code>
-              </div>
-              <p class="trigger-description">
-                Messages containing this keyword will trigger the interest rate workflow
-              </p>
-              <div class="trigger-example">
-                <strong>Example:</strong><br>
-                <span>"Update from KeyQuest Mortgage Team: New rates available"</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="trigger-item">
             <div class="trigger-icon">🏦</div>
             <div class="trigger-content">
               <h3>Bank Rates Update</h3>
@@ -197,15 +163,6 @@ Banker Name: DBS Ethan</span>
 
         <div class="trigger-note">
           <strong>📌 Note:</strong> All trigger keywords are case-insensitive. The bot only processes messages from WhatsApp groups (not individual chats).
-        </div>
-      </section>
-
-      <!-- Workflows Section -->
-      <section class="card" aria-labelledby="workflows-heading">
-        <h2 id="workflows-heading">⚙️ Active Workflows</h2>
-
-        <div id="workflowsContainer" class="workflows-list" role="region" aria-live="polite">
-          <p class="empty-state">No active workflows</p>
         </div>
       </section>
     </main>

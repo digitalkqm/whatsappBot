@@ -49,6 +49,18 @@ async function valuationReplyWorkflow(payload, engine) {
 
   console.log('🔍 Valuation Reply Workflow - Checking message from group:', groupId);
 
+  // Validate reply content
+  if (!text || text.trim().length < 5) {
+    console.log('❌ Reply is too short or empty, skipping');
+    return;
+  }
+
+  // Check if banker is asking a question (not providing valuation)
+  const isQuestion = text.includes('?');
+  if (isQuestion) {
+    console.log('⚠️ Banker reply contains question mark - treating as clarification request');
+  }
+
   // Check if message has a quoted reply
   if (!message.hasQuotedMsg) {
     console.log('❌ No quoted message, skipping');
@@ -151,9 +163,11 @@ async function valuationReplyWorkflow(payload, engine) {
     console.error('❌ Error sending to requester group:', requesterError);
   }
 
-  // Send to agent private chat
+  // Send to agent private chat (ONLY if not a question)
   let agentNotificationMessageId = null;
-  if (valuation.agent_whatsapp_id) {
+  if (isQuestion) {
+    console.log('⚠️ Banker asked a question - NOT forwarding to agent contact');
+  } else if (valuation.agent_whatsapp_id) {
     try {
       const agentChat = await engine.client.getChatById(valuation.agent_whatsapp_id);
       const sentMessage = await agentChat.sendMessage(agentMessage);
@@ -170,19 +184,29 @@ async function valuationReplyWorkflow(payload, engine) {
   }
 
   // Update database with final tracking (status remains 'pending', tracked via completed_at)
+  // Only mark as completed if banker provided an answer (not a question)
+  const updateData = {
+    final_reply_sent: finalReplyMessageId ? true : false,
+    final_reply_message_id: finalReplyMessageId,
+    agent_notified: agentNotificationMessageId ? true : false,
+    agent_notification_message_id: agentNotificationMessageId
+  };
+
+  // Only set completed_at if not a question (actual valuation provided)
+  if (!isQuestion) {
+    updateData.completed_at = new Date().toISOString();
+  }
+
   await supabase
     .from('valuation_requests')
-    .update({
-      final_reply_sent: finalReplyMessageId ? true : false,
-      final_reply_message_id: finalReplyMessageId,
-      agent_notified: agentNotificationMessageId ? true : false,
-      agent_notification_message_id: agentNotificationMessageId,
-      completed_at: new Date().toISOString()
-      // Note: status remains 'pending', workflow completion tracked via completed_at timestamp
-    })
+    .update(updateData)
     .eq('id', valuation.id);
 
-  console.log('✅ Valuation reply workflow complete');
+  if (isQuestion) {
+    console.log('✅ Valuation reply workflow complete (clarification request - awaiting actual valuation)');
+  } else {
+    console.log('✅ Valuation reply workflow complete');
+  }
 }
 
 module.exports = { valuationReplyWorkflow };
