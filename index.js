@@ -7,11 +7,11 @@ const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 const WebSocket = require('ws');
 const WorkflowEngine = require('./workflows/engine');
-const interestRateWorkflow = require('./workflows/interestRate');
 const valuationWorkflow = require('./workflows/valuation');
 const { valuationRequestWorkflow } = require('./workflows/valuationRequestSupabase');
 const { valuationReplyWorkflow } = require('./workflows/valuationReplySupabase');
 const ratePackageUpdateWorkflow = require('./workflows/ratePackageUpdate');
+const bankRatesUpdateWorkflow = require('./workflows/bankRatesUpdate');
 const WorkflowAPI = require('./api/workflowAPI');
 const TemplateAPI = require('./api/templateAPI');
 const ContactAPI = require('./api/contactAPI');
@@ -427,8 +427,8 @@ class HumanBehaviorManager {
       }
 
       if (payload.messageType === 'interest_rate' || payload.messageType === 'bank_rates_update') {
-        log('info', `💰 Executing interest rate workflow${groupInfo}`);
-        await workflowEngine.executeWorkflow('interest_rate', payload);
+        log('info', `🏦 Executing bank rates update workflow (n8n webhook)${groupInfo}`);
+        await workflowEngine.executeWorkflow('bank_rates_update', payload);
       }
     } catch (error) {
       log('error', `Workflow execution failed: ${error.message}${payload.groupId ? ` [Group: ${payload.groupId}]` : ''}`);
@@ -466,8 +466,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Initialize Workflow Engine
 const workflowEngine = new WorkflowEngine(SUPABASE_URL, SUPABASE_ANON_KEY);
-workflowEngine.registerWorkflow('interest_rate', interestRateWorkflow);
 workflowEngine.registerWorkflow('rate_package_update', ratePackageUpdateWorkflow); // n8n webhook for rate packages
+workflowEngine.registerWorkflow('bank_rates_update', bankRatesUpdateWorkflow); // n8n webhook for bank rates
 workflowEngine.registerWorkflow('valuation', valuationWorkflow); // Old workflow
 workflowEngine.registerWorkflow('valuation_request', valuationRequestWorkflow); // New Supabase workflow
 workflowEngine.registerWorkflow('valuation_reply', valuationReplyWorkflow); // New Supabase reply workflow

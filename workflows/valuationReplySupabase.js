@@ -49,12 +49,6 @@ async function valuationReplyWorkflow(payload, engine) {
 
   console.log('🔍 Valuation Reply Workflow - Checking message from group:', groupId);
 
-  // Validate reply content
-  if (!text || text.trim().length < 5) {
-    console.log('❌ Reply is too short or empty, skipping');
-    return;
-  }
-
   // Check if banker is asking a question (not providing valuation)
   const isQuestion = text.includes('?');
   if (isQuestion) {
