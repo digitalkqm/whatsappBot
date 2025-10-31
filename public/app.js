@@ -5,6 +5,7 @@ let reconnectInterval = null;
 let qrExpiryTimer = null;
 let qrGeneratedTime = null;
 const QR_EXPIRY_SECONDS = 60; // QR codes typically expire in 60 seconds
+let totalMessageCount = 0; // Track total messages during session
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
@@ -398,34 +399,23 @@ function celebrateSuccess() {
 
 // Update status display
 function updateStatus(data) {
-  // WhatsApp state
-  const stateEl = document.getElementById('whatsappState');
-  stateEl.textContent = data.whatsapp?.state || 'Unknown';
-  stateEl.style.color = data.whatsapp?.state === 'CONNECTED' ? '#28a745' : '#dc3545';
-
-  // Uptime
+  // Uptime - update in logging section
   if (data.uptime?.readable) {
-    document.getElementById('uptime').textContent = data.uptime.readable;
+    const uptimeEl = document.getElementById('uptimeLogs');
+    if (uptimeEl) {
+      uptimeEl.textContent = data.uptime.readable;
+    }
   }
 
-  // Human behavior stats
+  // Update total message count from humanBehavior
   if (data.humanBehavior) {
     const hb = data.humanBehavior;
-    document.getElementById('messagesHourly').textContent = hb.messageCount?.hourly || 0;
-    document.getElementById('messagesDaily').textContent = hb.messageCount?.daily || 0;
-    document.getElementById('activeHours').textContent = hb.isActiveHours ? 'Yes' : 'No';
-    document.getElementById('onBreak').textContent = hb.isOnBreak ? 'Yes ⏸️' : 'No';
-  }
-
-  // System info
-  if (data.system) {
-    document.getElementById('memoryRss').textContent = data.system.memory?.rss || '--';
-    document.getElementById('memoryHeap').textContent = data.system.memory?.heapUsed || '--';
-    document.getElementById('nodeVersion').textContent = data.system.nodejs || '--';
-  }
-
-  if (data.version) {
-    document.getElementById('botVersion').textContent = data.version;
+    const daily = hb.messageCount?.daily || 0;
+    totalMessageCount = daily;
+    const totalMsgEl = document.getElementById('totalMessages');
+    if (totalMsgEl) {
+      totalMsgEl.textContent = totalMessageCount;
+    }
   }
 }
 

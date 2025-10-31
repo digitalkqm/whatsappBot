@@ -56,11 +56,20 @@
 
       <!-- Logging Section (Hidden by default, shown when connected) -->
       <section class="card" id="loggingSection" style="display: none;" aria-labelledby="logging-heading">
-        <h2 id="logging-heading">📋 Bot Activity Logs</h2>
-        <div style="margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center;">
-          <p style="color: var(--text-secondary); margin: 0;">
-            Real-time activity logs from your WhatsApp bot
-          </p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); padding-bottom: var(--space-4); border-bottom: 2px solid var(--gray-200);">
+          <h2 id="logging-heading" style="margin: 0; padding: 0; border: none;">📋 Bot Activity Logs</h2>
+          <div style="display: flex; gap: var(--space-6); align-items: center;">
+            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+              <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Uptime</span>
+              <span id="uptimeLogs" style="font-size: 1rem; font-weight: 700; color: var(--gray-900);">--</span>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+              <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Total Messages</span>
+              <span id="totalMessages" style="font-size: 1rem; font-weight: 700; color: var(--gray-900);">0</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom: var(--space-4); display: flex; justify-content: flex-end; align-items: center;">
           <button id="clearLogs" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
             🗑️ Clear Logs
           </button>
@@ -69,38 +78,6 @@
           <div class="log-entry" style="color: var(--text-secondary); padding: 0.5rem;">
             <span class="log-time">[Waiting for logs...]</span>
             <span class="log-message">Bot activity will appear here</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Status Section -->
-      <section class="card" aria-labelledby="status-heading">
-        <h2 id="status-heading">📊 Bot Status</h2>
-
-        <div class="status-grid">
-          <div class="status-item">
-            <span class="label">WhatsApp Status:</span>
-            <span class="value" id="whatsappState">Loading...</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Uptime:</span>
-            <span class="value" id="uptime">--</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Messages (Hourly):</span>
-            <span class="value" id="messagesHourly">--</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Messages (Daily):</span>
-            <span class="value" id="messagesDaily">--</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Active Hours:</span>
-            <span class="value" id="activeHours">--</span>
-          </div>
-          <div class="status-item">
-            <span class="label">On Break:</span>
-            <span class="value" id="onBreak">--</span>
           </div>
         </div>
       </section>
