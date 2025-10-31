@@ -82,8 +82,12 @@
       font-size: 13px;
     }
 
-    tr:hover {
+    tbody tr:hover {
       background: #f8f9fa;
+    }
+
+    thead tr:hover {
+      background: #34495e;
     }
 
     .status-active {
@@ -105,9 +109,81 @@
     }
 
     .action-btn {
-      padding: 4px 8px;
-      font-size: 12px;
-      margin: 0 2px;
+      padding: 8px 16px;
+      font-size: 13px;
+      margin: 0 4px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .action-btn.btn-edit {
+      background: #3498db;
+      color: white;
+    }
+
+    .action-btn.btn-edit:hover {
+      background: #2980b9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .action-btn.btn-delete {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .action-btn.btn-delete:hover {
+      background: #c0392b;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .btn, .btn-primary, .btn-secondary, .btn-success {
+      padding: 10px 20px;
+      font-size: 14px;
+      border-radius: 6px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .btn-primary {
+      background: #00a884;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #008f6f;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .btn-secondary {
+      background: #95a5a6;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #7f8c8d;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .btn-success {
+      background: #27ae60;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #229954;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
 
     .loading {
@@ -274,15 +350,13 @@
               <th>Agent #</th>
               <th>WhatsApp Group</th>
               <th>Keywords</th>
-              <th>Priority</th>
-              <th>Status</th>
               <th>Total Valuations</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="bankers-tbody">
             <tr>
-              <td colspan="9" class="loading">Loading bankers...</td>
+              <td colspan="7" class="loading">Loading bankers...</td>
             </tr>
           </tbody>
         </table>
@@ -399,7 +473,7 @@
       const tbody = document.getElementById('bankers-tbody');
 
       if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><h3>No bankers found</h3><p>Click "Add Banker" to create one</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><h3>No bankers found</h3><p>Click "Add Banker" to create one</p></td></tr>';
         return;
       }
 
@@ -408,9 +482,6 @@
           ? banker.routing_keywords.map(k => `<span class="keyword-tag">${k}</span>`).join(' ')
           : '-';
 
-        const statusClass = banker.is_active ? 'status-active' : 'status-inactive';
-        const statusText = banker.is_active ? 'ACTIVE' : 'INACTIVE';
-
         return `
           <tr>
             <td><strong>${banker.display_name}</strong><br><small>${banker.name}</small></td>
@@ -418,16 +489,10 @@
             <td>${banker.agent_number || '-'}</td>
             <td><code>${banker.whatsapp_group_id.substring(0, 20)}...</code><br><small>${banker.whatsapp_group_name || ''}</small></td>
             <td><div class="keywords">${keywords}</div></td>
-            <td>${banker.priority}</td>
-            <td><span class="${statusClass}">${statusText}</span></td>
             <td>${banker.total_valuations || 0}</td>
             <td>
-              <button class="btn-primary action-btn" onclick="editBanker('${banker.id}')">Edit</button>
-              <button class="btn-warning action-btn" onclick="viewStats('${banker.id}')">Stats</button>
-              <button class="btn-${banker.is_active ? 'secondary' : 'success'} action-btn" onclick="toggleActive('${banker.id}', ${!banker.is_active})">
-                ${banker.is_active ? 'Deactivate' : 'Activate'}
-              </button>
-              <button class="btn-danger action-btn" onclick="deleteBanker('${banker.id}')">Delete</button>
+              <button class="action-btn btn-edit" onclick="editBanker('${banker.id}')">Edit</button>
+              <button class="action-btn btn-delete" onclick="deleteBanker('${banker.id}')">Delete</button>
             </td>
           </tr>
         `;
@@ -634,7 +699,7 @@
 
     function showError(message) {
       const tbody = document.getElementById('bankers-tbody');
-      tbody.innerHTML = `<tr><td colspan="9" class="loading" style="color: #e74c3c;">${message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="loading" style="color: #e74c3c;">${message}</td></tr>`;
     }
 
     // Initialize
