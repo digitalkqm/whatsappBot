@@ -137,6 +137,9 @@ CREATE TABLE IF NOT EXISTS broadcast_executions (
   delay_between_messages INTEGER DEFAULT 7000, -- milliseconds
   delay_between_batches INTEGER DEFAULT 600000, -- milliseconds
 
+  -- Notification
+  notification_contact TEXT, -- Optional phone number for broadcast completion notifications
+
   -- Status
   status TEXT DEFAULT 'running' CHECK (status IN ('pending', 'running', 'paused', 'completed', 'failed', 'cancelled')),
   error_message TEXT,

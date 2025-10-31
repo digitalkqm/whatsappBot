@@ -6,11 +6,16 @@ let selectedContacts = new Set();
 let currentPage = 1;
 const contactsPerPage = 50;
 
+// WebSocket for real-time broadcast updates
+let broadcastWs = null;
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
   await loadAllContacts();
   setupEventListeners();
   setupCSVUpload();
+  setupBroadcastWebSocket();
+  checkForActiveBroadcast(); // Check for in-progress broadcasts
 });
 
 // Setup event listeners
@@ -19,7 +24,6 @@ function setupEventListeners() {
   document.getElementById('downloadTemplateBtn').addEventListener('click', () => downloadCSVTemplate());
   document.getElementById('manualForm').addEventListener('submit', handleManualSubmit);
   document.getElementById('csvForm').addEventListener('submit', handleCSVSubmit);
-  document.getElementById('sheetsForm').addEventListener('submit', handleSheetsSubmit);
   document.getElementById('editForm').addEventListener('submit', handleEditSubmit);
   document.getElementById('broadcastForm').addEventListener('submit', handleBroadcastSubmit);
 
@@ -370,7 +374,6 @@ function closeCreateModal() {
   document.getElementById('createModal').classList.remove('active');
   document.getElementById('manualForm').reset();
   document.getElementById('csvForm').reset();
-  document.getElementById('sheetsForm').reset();
   csvData = null;
   document.getElementById('csvPreview').style.display = 'none';
 }
@@ -470,42 +473,6 @@ async function handleCSVSubmit(e) {
   } catch (error) {
     console.error('Error importing CSV:', error);
     showNotification('Error importing CSV', 'error');
-  }
-}
-
-// Handle Google Sheets form submission
-async function handleSheetsSubmit(e) {
-  e.preventDefault();
-
-  const listName = document.getElementById('sheetsListName').value;
-  const spreadsheetId = document.getElementById('spreadsheetId').value;
-  const sheetName = document.getElementById('sheetName').value || 'Clients';
-  const range = document.getElementById('sheetRange').value || 'A2:D1000';
-
-  try {
-    const response = await fetch('/api/contacts/sync/google-sheets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        list_name: listName,
-        spreadsheet_id: spreadsheetId,
-        sheet_name: sheetName,
-        range: range
-      })
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      showNotification(`Successfully synced ${result.data.total_count} contacts`, 'success');
-      closeCreateModal();
-      await loadAllContacts();
-    } else {
-      showNotification(result.error || 'Failed to sync from Google Sheets', 'error');
-    }
-  } catch (error) {
-    console.error('Error syncing from Google Sheets:', error);
-    showNotification('Error syncing from Google Sheets', 'error');
   }
 }
 
@@ -677,7 +644,127 @@ function insertNamePlaceholder() {
 
 // Broadcast progress tracking
 let currentBroadcastId = null;
+let currentExecutionId = null;
 let broadcastStatusInterval = null;
+let broadcastContactsMap = new Map(); // Map of contact IDs to their info
+
+// Setup WebSocket connection for broadcast updates
+function setupBroadcastWebSocket() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+  try {
+    broadcastWs = new WebSocket(wsUrl);
+
+    broadcastWs.onopen = () => {
+      console.log('Broadcast WebSocket connected');
+    };
+
+    broadcastWs.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === 'broadcast_status') {
+        handleBroadcastStatusUpdate(message.data);
+      }
+    };
+
+    broadcastWs.onerror = (error) => {
+      console.error('Broadcast WebSocket error:', error);
+    };
+
+    broadcastWs.onclose = () => {
+      console.log('Broadcast WebSocket disconnected, reconnecting...');
+      setTimeout(setupBroadcastWebSocket, 5000);
+    };
+  } catch (error) {
+    console.error('Failed to create broadcast WebSocket:', error);
+  }
+}
+
+// Handle real-time broadcast status updates
+function handleBroadcastStatusUpdate(data) {
+  // Only process if this is the current broadcast
+  if (!currentBroadcastId || data.broadcast_id !== currentBroadcastId) {
+    return;
+  }
+
+  console.log('Broadcast status update:', data);
+
+  // Update summary metrics
+  document.getElementById('sentContactsCount').textContent = data.sent;
+  document.getElementById('failedContactsCount').textContent = data.failed;
+  document.getElementById('progressPercentage').textContent = data.progress + '%';
+  document.getElementById('progressBar').style.width = data.progress + '%';
+
+  // Update status message
+  if (data.status === 'completed') {
+    document.getElementById('broadcastStatusMessage').textContent =
+      `✅ Broadcast complete! ${data.sent} sent, ${data.failed} failed`;
+    document.getElementById('closeProgressBtn').disabled = false;
+  } else {
+    document.getElementById('broadcastStatusMessage').textContent =
+      `Sending messages... ${data.current_index}/${data.total}`;
+  }
+
+  // Update individual contact status in table
+  if (data.current_contact) {
+    const row = document.querySelector(`#broadcastStatusTable tr[data-contact-id="${data.current_contact.id}"]`);
+    if (row) {
+      const statusCell = row.querySelector('.status-badge');
+      if (data.current_contact.status === 'sent') {
+        statusCell.outerHTML = '<span class="status-badge status-sent">✅ Sent</span>';
+      } else if (data.current_contact.status === 'failed') {
+        statusCell.outerHTML = '<span class="status-badge status-failed">❌ Failed</span>';
+      }
+    }
+  }
+}
+
+// Check for active broadcasts on page load (recovery)
+async function checkForActiveBroadcast() {
+  try {
+    // Check if there's a stored broadcast ID in localStorage
+    const storedBroadcastId = localStorage.getItem('active_broadcast_id');
+    const storedExecutionId = localStorage.getItem('active_execution_id');
+
+    if (!storedBroadcastId && !storedExecutionId) {
+      return;
+    }
+
+    // Query the broadcast status
+    const id = storedBroadcastId || storedExecutionId;
+    const response = await fetch(`/api/broadcast/status/${id}`);
+    const result = await response.json();
+
+    if (result.success && result.data.summary.status === 'running') {
+      // Broadcast is still running, show progress modal
+      console.log('Recovering active broadcast:', result.data.summary);
+
+      currentBroadcastId = result.data.summary.broadcast_id;
+      currentExecutionId = result.data.summary.execution_id;
+
+      // Reconstruct contacts info from messages
+      const contacts = result.data.messages.map(msg => ({
+        id: msg.contact_id,
+        name: msg.recipient_name,
+        phone: msg.recipient_phone
+      }));
+
+      // Store contacts in map for status updates
+      contacts.forEach(c => broadcastContactsMap.set(c.id, c));
+
+      // Show progress modal with current state
+      showBroadcastProgress(contacts, result.data.summary);
+    } else {
+      // Broadcast completed or not found, clean up storage
+      localStorage.removeItem('active_broadcast_id');
+      localStorage.removeItem('active_execution_id');
+    }
+  } catch (error) {
+    console.error('Error checking for active broadcast:', error);
+    localStorage.removeItem('active_broadcast_id');
+    localStorage.removeItem('active_execution_id');
+  }
+}
 
 // Handle broadcast form submission
 async function handleBroadcastSubmit(e) {
@@ -686,6 +773,7 @@ async function handleBroadcastSubmit(e) {
   const message = document.getElementById('broadcastMessage').value;
   const imageUrl = document.getElementById('broadcastImage').value;
   const delayBetween = parseInt(document.getElementById('delayBetween').value) || 7;
+  const notificationContact = document.getElementById('notificationContact').value.trim();
 
   const contacts = allContacts.filter(c => selectedContacts.has(c.id));
 
@@ -701,7 +789,8 @@ async function handleBroadcastSubmit(e) {
         })),
         message,
         image_url: imageUrl,
-        delay_between_messages: delayBetween * 1000
+        delay_between_messages: delayBetween * 1000,
+        notification_contact: notificationContact || null
       })
     });
 
@@ -709,6 +798,15 @@ async function handleBroadcastSubmit(e) {
 
     if (result.success) {
       currentBroadcastId = result.data.broadcast_id;
+      currentExecutionId = result.data.execution_id;
+
+      // Store in localStorage for recovery after page refresh
+      localStorage.setItem('active_broadcast_id', currentBroadcastId);
+      localStorage.setItem('active_execution_id', currentExecutionId);
+
+      // Store contacts in map
+      contacts.forEach(c => broadcastContactsMap.set(c.id, c));
+
       closeBroadcastModal();
       showBroadcastProgress(contacts);
       selectedContacts.clear();
@@ -723,69 +821,97 @@ async function handleBroadcastSubmit(e) {
 }
 
 // Show broadcast progress modal
-function showBroadcastProgress(contacts) {
+function showBroadcastProgress(contacts, initialStatus = null) {
   const modal = document.getElementById('broadcastProgressModal');
   modal.classList.add('active');
 
-  // Initialize progress
-  document.getElementById('totalContactsCount').textContent = contacts.length;
-  document.getElementById('sentContactsCount').textContent = '0';
-  document.getElementById('failedContactsCount').textContent = '0';
-  document.getElementById('progressPercentage').textContent = '0%';
-  document.getElementById('progressBar').style.width = '0%';
-  document.getElementById('broadcastStatusMessage').textContent = 'Starting broadcast...';
-  document.getElementById('closeProgressBtn').disabled = true;
+  // Initialize progress (use initialStatus if recovering from page refresh)
+  if (initialStatus) {
+    document.getElementById('totalContactsCount').textContent = initialStatus.total;
+    document.getElementById('sentContactsCount').textContent = initialStatus.sent;
+    document.getElementById('failedContactsCount').textContent = initialStatus.failed;
+    document.getElementById('progressPercentage').textContent = initialStatus.progress + '%';
+    document.getElementById('progressBar').style.width = initialStatus.progress + '%';
+
+    if (initialStatus.status === 'completed') {
+      document.getElementById('broadcastStatusMessage').textContent =
+        `✅ Broadcast complete! ${initialStatus.sent} sent, ${initialStatus.failed} failed`;
+      document.getElementById('closeProgressBtn').disabled = false;
+    } else {
+      document.getElementById('broadcastStatusMessage').textContent =
+        `Sending messages... ${initialStatus.current_index}/${initialStatus.total}`;
+      document.getElementById('closeProgressBtn').disabled = true;
+    }
+  } else {
+    document.getElementById('totalContactsCount').textContent = contacts.length;
+    document.getElementById('sentContactsCount').textContent = '0';
+    document.getElementById('failedContactsCount').textContent = '0';
+    document.getElementById('progressPercentage').textContent = '0%';
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('broadcastStatusMessage').textContent = 'Starting broadcast...';
+    document.getElementById('closeProgressBtn').disabled = true;
+  }
 
   // Populate status table
   const tbody = document.getElementById('broadcastStatusTable');
-  tbody.innerHTML = contacts.map(c => `
-    <tr data-contact-id="${c.id}">
-      <td>${escapeHtml(c.name || 'Unknown')}</td>
-      <td>${escapeHtml(c.phone)}</td>
-      <td>
-        <span class="status-badge status-pending">⏳ Pending</span>
-      </td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = contacts.map(c => {
+    // If recovering, determine status from initialStatus
+    let statusBadge = '<span class="status-badge status-pending">⏳ Pending</span>';
 
-  // Start polling for status updates
-  startBroadcastStatusPolling(contacts.length);
+    if (initialStatus && initialStatus.current_index > 0) {
+      // Try to determine status from messages (not available here, but will be updated via WebSocket)
+      statusBadge = '<span class="status-badge status-pending">⏳ Pending</span>';
+    }
+
+    return `
+      <tr data-contact-id="${c.id}">
+        <td>${escapeHtml(c.name || 'Unknown')}</td>
+        <td>${escapeHtml(c.phone)}</td>
+        <td>${statusBadge}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // Fetch detailed status if recovering (to populate individual message statuses)
+  if (initialStatus && currentExecutionId) {
+    updateTableStatusFromAPI(currentExecutionId);
+  }
 }
 
-// Poll for broadcast status updates
-function startBroadcastStatusPolling(totalContacts) {
-  let sentCount = 0;
-  let failedCount = 0;
+// Update table with detailed message status from API (used when recovering)
+async function updateTableStatusFromAPI(executionId) {
+  try {
+    const response = await fetch(`/api/broadcast/status/${executionId}`);
+    const result = await response.json();
 
-  // Simulate status updates (replace with actual API polling)
-  broadcastStatusInterval = setInterval(() => {
-    // This is a simulation - in production, poll /api/broadcast/status/:id
-    if (sentCount + failedCount < totalContacts) {
-      sentCount++;
+    if (result.success && result.data.messages) {
+      result.data.messages.forEach(msg => {
+        const row = document.querySelector(`#broadcastStatusTable tr[data-contact-id="${msg.contact_id}"]`);
+        if (row) {
+          const statusCell = row.querySelector('td:last-child');
+          let statusBadge = '';
 
-      // Update progress
-      const progress = ((sentCount + failedCount) / totalContacts) * 100;
-      document.getElementById('sentContactsCount').textContent = sentCount;
-      document.getElementById('progressPercentage').textContent = Math.round(progress) + '%';
-      document.getElementById('progressBar').style.width = progress + '%';
+          switch (msg.status) {
+            case 'sent':
+              statusBadge = '<span class="status-badge status-sent">✅ Sent</span>';
+              break;
+            case 'failed':
+              statusBadge = '<span class="status-badge status-failed">❌ Failed</span>';
+              break;
+            case 'sending':
+              statusBadge = '<span class="status-badge status-sending">🔄 Sending</span>';
+              break;
+            default:
+              statusBadge = '<span class="status-badge status-pending">⏳ Pending</span>';
+          }
 
-      // Update status message
-      if (sentCount + failedCount === totalContacts) {
-        document.getElementById('broadcastStatusMessage').textContent = `✅ Broadcast complete! ${sentCount} sent, ${failedCount} failed`;
-        document.getElementById('closeProgressBtn').disabled = false;
-        clearInterval(broadcastStatusInterval);
-      } else {
-        document.getElementById('broadcastStatusMessage').textContent = `Sending messages... ${sentCount + failedCount}/${totalContacts}`;
-      }
-
-      // Update table row status
-      const rows = document.querySelectorAll('#broadcastStatusTable tr[data-contact-id]');
-      if (rows[sentCount - 1]) {
-        rows[sentCount - 1].querySelector('.status-badge').outerHTML =
-          '<span class="status-badge status-sent">✅ Sent</span>';
-      }
+          statusCell.innerHTML = statusBadge;
+        }
+      });
     }
-  }, 7000); // Match delay_between_messages
+  } catch (error) {
+    console.error('Error fetching detailed status:', error);
+  }
 }
 
 // Close broadcast progress modal
@@ -798,7 +924,14 @@ function closeBroadcastProgress() {
     broadcastStatusInterval = null;
   }
 
+  // Clear broadcast tracking
   currentBroadcastId = null;
+  currentExecutionId = null;
+  broadcastContactsMap.clear();
+
+  // Clear localStorage
+  localStorage.removeItem('active_broadcast_id');
+  localStorage.removeItem('active_execution_id');
 }
 
 // Show notification
