@@ -76,10 +76,13 @@ function connectWebSocket() {
 // Handle WebSocket messages
 function handleWebSocketMessage(data) {
   if (data.type === 'qr') {
+    console.log('Received QR code via WebSocket', data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : 'no timestamp');
     displayQRCode(data.qr);
   } else if (data.type === 'authenticated') {
+    console.log('Authentication in progress...');
     showAuthenticating();
   } else if (data.type === 'ready') {
+    console.log('Authentication successful!');
     showAuthenticationSuccess();
   } else if (data.type === 'status') {
     updateStatus(data.status);
@@ -109,12 +112,26 @@ function updateConnectionStatus(status) {
 
 // Setup button event listeners
 function setupEventListeners() {
-  document.getElementById('refreshQR').addEventListener('click', fetchQRCode);
-  document.getElementById('logoutBtn').addEventListener('click', logout);
-  document.getElementById('toggleBreak').addEventListener('click', toggleBreak);
-  document.getElementById('saveSession').addEventListener('click', saveSession);
-  document.getElementById('clearSession').addEventListener('click', clearSession);
-  document.getElementById('restartBot').addEventListener('click', restartBot);
+  const refreshBtn = document.getElementById('refreshQR');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', fetchQRCode);
+  }
+
+  // Optional buttons (only add listeners if they exist)
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
+  const toggleBreakBtn = document.getElementById('toggleBreak');
+  if (toggleBreakBtn) toggleBreakBtn.addEventListener('click', toggleBreak);
+
+  const saveSessionBtn = document.getElementById('saveSession');
+  if (saveSessionBtn) saveSessionBtn.addEventListener('click', saveSession);
+
+  const clearSessionBtn = document.getElementById('clearSession');
+  if (clearSessionBtn) clearSessionBtn.addEventListener('click', clearSession);
+
+  const restartBotBtn = document.getElementById('restartBot');
+  if (restartBotBtn) restartBotBtn.addEventListener('click', restartBot);
 }
 
 // Fetch health status
@@ -161,6 +178,13 @@ async function checkQRStatus() {
       showAuthenticationSuccess();
     } else if (data.state === 'CONNECTED') {
       showAuthenticationSuccess();
+    } else if (data.qr) {
+      // New QR code available - update display
+      const currentQR = document.getElementById('qrCodeImage').src;
+      if (currentQR !== data.qr) {
+        console.log('New QR code detected, updating display');
+        displayQRCode(data.qr);
+      }
     }
   } catch (error) {
     // Silent fail for background checks
@@ -325,7 +349,10 @@ function startQRExpiryTimer() {
   clearQRExpiryTimer();
 
   qrExpiryTimer = setTimeout(() => {
+    console.log('QR code expired, fetching new one...');
     showQRExpired();
+    // Automatically fetch a new QR code after expiry
+    setTimeout(fetchQRCode, 2000); // Wait 2 seconds before fetching new QR
   }, QR_EXPIRY_SECONDS * 1000);
 }
 

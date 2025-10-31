@@ -18,6 +18,11 @@ const ContactAPI = require('./api/contactAPI');
 const ValuationAPI = require('./api/valuationAPI');
 const BankerAPI = require('./api/bankerAPI');
 
+// Puppeteer stealth configuration to avoid WhatsApp detection
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
+
 // --- Config ---
 const PORT = process.env.PORT || 3000;
 const SESSION_ID = process.env.WHATSAPP_SESSION_ID || 'default_session';
@@ -974,6 +979,9 @@ function createWhatsAppClient() {
     const authDir = path.join(__dirname, '.wwebjs_auth');
     const sessionPath = path.join(authDir, `session-${SESSION_ID}`);
 
+    // Persistent Chrome profile directory for consistent browser fingerprinting
+    const chromeProfileDir = path.join(__dirname, '.wwebjs_chrome_profile');
+
     // Create directories if they don't exist
     if (!fs.existsSync(authDir)) {
       fs.mkdirSync(authDir, { recursive: true });
@@ -985,6 +993,11 @@ function createWhatsAppClient() {
       log('info', `📁 Created session directory: ${sessionPath}`);
     }
 
+    if (!fs.existsSync(chromeProfileDir)) {
+      fs.mkdirSync(chromeProfileDir, { recursive: true });
+      log('info', `📁 Created Chrome profile directory: ${chromeProfileDir}`);
+    }
+
     // Add .gitkeep to ensure folder is tracked
     const gitkeepPath = path.join(authDir, '.gitkeep');
     if (!fs.existsSync(gitkeepPath)) {
@@ -994,6 +1007,7 @@ function createWhatsAppClient() {
 
     log('info', `Using auth directory: ${authDir}`);
     log('info', `Using session path: ${sessionPath}`);
+    log('info', `Using Chrome profile: ${chromeProfileDir}`);
 
     return new Client({
       authStrategy: new RemoteAuth({
@@ -1005,21 +1019,75 @@ function createWhatsAppClient() {
       puppeteer: {
         headless: true,
         args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu',
-          '--js-flags=--max-old-space-size=256',
-          '--disable-extensions',
+          // ========================================
+          // CRITICAL ANTI-DETECTION FLAGS
+          // ========================================
+          // Hides navigator.webdriver flag that exposes automation
+          '--disable-blink-features=AutomationControlled',
+
+          // Persistent browser profile for consistent fingerprinting
+          // This prevents WhatsApp from seeing a "new device" on every restart
+          `--user-data-dir=${chromeProfileDir}`,
+          '--profile-directory=Default',
+
+          // Custom user agent (looks like real Chrome, not Puppeteer)
+          '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+
+          // Standard viewport size (1920x1080 = common desktop resolution)
+          '--window-size=1920,1080',
+
+          // ========================================
+          // STABILITY & PERFORMANCE FLAGS (SAFE)
+          // ========================================
+          '--disable-dev-shm-usage',           // Prevents /dev/shm issues in Docker/low-memory
+          '--disable-accelerated-2d-canvas',   // Reduces GPU usage
+          '--disable-gpu',                     // Server environments don't need GPU
+
+          // Increased memory limit (was 256MB - too low, caused crashes)
+          '--js-flags=--max-old-space-size=512',
+
+          // ========================================
+          // NATURAL BROWSER BEHAVIOR FLAGS
+          // ========================================
+          // Prevent background throttling (keeps connection alive)
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+
+          // Disable features that real users typically disable
+          '--disable-features=TranslateUI',
+
+          // Network optimizations
+          '--disable-ipc-flooding-protection',
+          '--enable-features=NetworkService,NetworkServiceInProcess',
+
+          // Language & locale (natural for English users)
+          '--lang=en-US',
+          '--accept-lang=en-US,en;q=0.9',
+
+          // ========================================
+          // REMOVED DANGEROUS FLAGS (DO NOT ADD BACK)
+          // ========================================
+          // ❌ '--no-sandbox' - Strong bot signal, only use in Docker if absolutely required
+          // ❌ '--disable-setuid-sandbox' - Bot signal
+          // ❌ '--single-process' - CRITICAL: Causes crashes AND triggers detection
+          // ❌ '--no-first-run' - Unnatural flag
+          // ❌ '--no-zygote' - Related to single-process issues
+          // ❌ '--disable-extensions' - Real browsers have extensions
         ],
         timeout: 120000,
+
+        // Use puppeteer-extra with stealth plugin instead of default puppeteer
+        // This is set globally at the top of the file, so whatsapp-web.js will use it
       },
       qrTimeout: 90000,
       restartOnAuthFail: true,
+
+      // Use stable WhatsApp Web version to avoid breaking changes
+      webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+      },
     });
   } catch (err) {
     log('error', `Failed to create WhatsApp client: ${err.message}`);
@@ -1047,11 +1115,18 @@ function setupClientEvents(c) {
 
     // Generate QR code as data URL for dashboard
     try {
-      currentQRCode = await QRCode.toDataURL(qr);
-      log('info', '📱 QR Code generated for dashboard');
+      const newQRCode = await QRCode.toDataURL(qr);
 
-      // Broadcast to all WebSocket clients
-      broadcastToClients({ type: 'qr', qr: currentQRCode });
+      // Only update and broadcast if QR code has changed
+      if (currentQRCode !== newQRCode) {
+        currentQRCode = newQRCode;
+        log('info', '📱 New QR Code generated for dashboard');
+
+        // Broadcast to all WebSocket clients
+        broadcastToClients({ type: 'qr', qr: currentQRCode, timestamp: Date.now() });
+      } else {
+        log('debug', '📱 QR Code unchanged, skipping broadcast');
+      }
     } catch (err) {
       log('error', `Failed to generate QR code: ${err.message}`);
     }
@@ -1361,19 +1436,42 @@ app.get('/api/status', (_, res) => {
 app.get('/qr-code', async (_, res) => {
   try {
     if (currentQRCode) {
-      res.status(200).json({ qr: currentQRCode, authenticated: false });
+      res.status(200).json({
+        qr: currentQRCode,
+        authenticated: false,
+        timestamp: Date.now()
+      });
     } else if (client) {
       const state = await client.getState();
       if (state === 'CONNECTED') {
-        res.status(200).json({ qr: null, authenticated: true, state });
+        res.status(200).json({
+          qr: null,
+          authenticated: true,
+          state,
+          timestamp: Date.now()
+        });
       } else {
-        res.status(200).json({ qr: null, authenticated: false, state, message: 'Waiting for QR code...' });
+        res.status(200).json({
+          qr: null,
+          authenticated: false,
+          state,
+          message: 'Waiting for QR code...',
+          timestamp: Date.now()
+        });
       }
     } else {
-      res.status(200).json({ qr: null, authenticated: false, message: 'Client not initialized' });
+      res.status(200).json({
+        qr: null,
+        authenticated: false,
+        message: 'Client not initialized',
+        timestamp: Date.now()
+      });
     }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: error.message,
+      timestamp: Date.now()
+    });
   }
 });
 
