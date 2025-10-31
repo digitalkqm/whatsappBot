@@ -1826,6 +1826,13 @@ app.get('/api/templates/list', async (req, res) => {
   res.status(result.success ? 200 : 400).json(result);
 });
 
+// IMPORTANT: Specific routes must come BEFORE parameterized routes
+// Otherwise Express will match '/api/templates/categories' to '/:id' route
+app.get('/api/templates/categories', async (req, res) => {
+  const result = await templateAPI.getCategories();
+  res.status(result.success ? 200 : 400).json(result);
+});
+
 app.get('/api/templates/:id', async (req, res) => {
   const result = await templateAPI.getTemplate(req.params.id);
   res.status(result.success ? 200 : 404).json(result);
@@ -1845,11 +1852,6 @@ app.post('/api/templates/:id/duplicate', async (req, res) => {
   const { new_name } = req.body;
   const result = await templateAPI.duplicateTemplate(req.params.id, new_name);
   res.status(result.success ? 201 : 400).json(result);
-});
-
-app.get('/api/templates/categories', async (req, res) => {
-  const result = await templateAPI.getCategories();
-  res.status(result.success ? 200 : 400).json(result);
 });
 
 app.post('/api/templates/:id/preview', async (req, res) => {
