@@ -1000,6 +1000,25 @@ function createWhatsAppClient() {
       log('info', `📁 Created Chrome profile directory: ${chromeProfileDir}`);
     }
 
+    // Create RemoteAuth temp session directory structure to prevent ENOENT errors
+    const remoteAuthPath = path.join(authDir, `RemoteAuth-${SESSION_ID}`);
+    const tempSessionPath = path.join(authDir, `wwebjs_temp_session_${SESSION_ID}`);
+
+    // Ensure RemoteAuth directories exist
+    [remoteAuthPath, tempSessionPath].forEach(dirPath => {
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+        log('info', `📁 Created RemoteAuth directory: ${dirPath}`);
+
+        // Create Default subdirectory to prevent ENOENT during deleteMetadata
+        const defaultDir = path.join(dirPath, 'Default');
+        if (!fs.existsSync(defaultDir)) {
+          fs.mkdirSync(defaultDir, { recursive: true });
+          log('info', `📁 Created Default subdirectory: ${defaultDir}`);
+        }
+      }
+    });
+
     // Add .gitkeep to ensure folder is tracked
     const gitkeepPath = path.join(authDir, '.gitkeep');
     if (!fs.existsSync(gitkeepPath)) {
@@ -1409,7 +1428,13 @@ const gracefulShutdown = async (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('unhandledRejection', (reason, promise) => {
-  log('error', 'Unhandled Rejection at:', promise, 'reason:', reason);
+  // Handle RemoteAuth ENOENT errors gracefully (expected on fresh deployments)
+  if (reason && reason.code === 'ENOENT' && reason.path && reason.path.includes('wwebjs_temp_session')) {
+    log('warn', `⚠️ RemoteAuth directory error (non-critical): ${reason.path}`);
+    log('info', 'This is expected on first runs or when session directory is incomplete');
+  } else {
+    log('error', 'Unhandled Rejection at:', promise, 'reason:', reason);
+  }
 });
 
 // WebSocket clients storage

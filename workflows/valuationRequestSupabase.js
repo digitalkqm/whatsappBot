@@ -299,7 +299,7 @@ async function valuationRequestWorkflow(payload, engine) {
     console.log('✅ Forward message ID:', sentMessage.id._serialized);
 
     // Update with forward tracking
-    await supabase
+    const { error: updateError } = await supabase
       .from('valuation_requests')
       .update({
         forwarded_to_banker: true,
@@ -308,6 +308,12 @@ async function valuationRequestWorkflow(payload, engine) {
         status: 'forwarded'
       })
       .eq('id', savedValuation.id);
+
+    if (updateError) {
+      console.error('❌ Error updating forward tracking:', updateError);
+      await message.reply('❌ Request sent but failed to update tracking. Please contact support.');
+      return;
+    }
 
     console.log('✅ Updated forward tracking');
 

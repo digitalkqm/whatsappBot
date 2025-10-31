@@ -77,6 +77,19 @@ async function valuationReplyWorkflow(payload, engine) {
 
   if (fetchError || !valuation) {
     console.log('❌ No matching valuation found for forward_message_id:', quotedMessageId);
+    console.log('❌ Query error:', fetchError);
+    console.log('🔍 Searching with group ID:', groupId);
+
+    // Debug: Check if there are any valuations for this group
+    const { data: allValuations, error: debugError } = await supabase
+      .from('valuation_requests')
+      .select('id, forward_message_id, target_group_id, status')
+      .eq('target_group_id', groupId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    console.log('🔍 Recent valuations for this group:', allValuations);
+
     return;
   }
 
