@@ -113,12 +113,17 @@ CREATE TRIGGER update_broadcast_contacts_updated_at
 CREATE TABLE IF NOT EXISTS broadcast_executions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
+  -- Broadcast identification
+  broadcast_id TEXT,
+  name TEXT,
+
   -- Workflow reference
   workflow_id UUID REFERENCES workflows(id) ON DELETE CASCADE,
   execution_id UUID REFERENCES workflow_executions(id) ON DELETE CASCADE,
 
   -- Message content
-  message_content TEXT NOT NULL,
+  message_content TEXT,
+  message_template TEXT,
   image_url TEXT,
 
   -- Contact source
@@ -164,6 +169,7 @@ CREATE TABLE IF NOT EXISTS broadcast_executions (
 CREATE INDEX IF NOT EXISTS idx_broadcast_exec_workflow ON broadcast_executions(workflow_id);
 CREATE INDEX IF NOT EXISTS idx_broadcast_exec_status ON broadcast_executions(status);
 CREATE INDEX IF NOT EXISTS idx_broadcast_exec_started ON broadcast_executions(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_broadcast_id ON broadcast_executions(broadcast_id);
 
 -- ===================================================================
 -- TABLE 4: BROADCAST MESSAGES (Individual Message Tracking)
