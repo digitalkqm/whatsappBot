@@ -119,9 +119,88 @@
     }
 
     .action-btn {
-      padding: 4px 8px;
-      font-size: 12px;
-      margin: 0 2px;
+      padding: 8px 16px;
+      font-size: 13px;
+      margin: 0 4px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .action-btn.btn-view {
+      background: #3498db;
+      color: white;
+    }
+
+    .action-btn.btn-view:hover {
+      background: #2980b9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .action-btn.btn-delete {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .action-btn.btn-delete:hover {
+      background: #c0392b;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .btn-primary, .btn-secondary, .btn-success {
+      padding: 10px 20px;
+      font-size: 14px;
+      border-radius: 6px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .btn-primary {
+      background: #00a884;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #008f6f;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .btn-secondary {
+      background: #95a5a6;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #7f8c8d;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .btn-secondary:disabled {
+      background: #bdc3c7;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .btn-success {
+      background: #27ae60;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #229954;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
 
     .loading {
@@ -272,9 +351,7 @@
         <table id="valuations-table">
           <thead>
             <tr>
-              <th>ID</th>
               <th>Created</th>
-              <th>Status</th>
               <th>Address</th>
               <th>Size</th>
               <th>Asking</th>
@@ -288,7 +365,7 @@
           </thead>
           <tbody id="valuations-tbody">
             <tr>
-              <td colspan="12" class="loading">Loading valuations...</td>
+              <td colspan="10" class="loading">Loading valuations...</td>
             </tr>
           </tbody>
         </table>
@@ -338,7 +415,7 @@
       const tbody = document.getElementById('valuations-tbody');
 
       if (currentData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" class="empty-state"><h3>No valuations found</h3><p>Try adjusting your filters</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><h3>No valuations found</h3><p>Try adjusting your filters</p></td></tr>';
         renderPagination(0);
         return;
       }
@@ -363,9 +440,7 @@
 
         return `
           <tr>
-            <td><code>${val.id.substring(0, 8)}...</code></td>
             <td>${created}</td>
-            <td><span class="status-badge ${statusClass}">${val.status}</span></td>
             <td>${val.address || '-'}</td>
             <td>${val.size || '-'}</td>
             <td>${val.asking || '-'}</td>
@@ -375,8 +450,8 @@
             <td>${val.bankers?.bank_name || '-'}</td>
             <td>${progress.join('<br>')}</td>
             <td>
-              <button class="btn-primary action-btn" onclick="viewDetails('${val.id}')">View</button>
-              <button class="btn-danger action-btn" onclick="deleteValuation('${val.id}')">Delete</button>
+              <button class="action-btn btn-view" onclick="viewDetails('${val.id}')">View</button>
+              <button class="action-btn btn-delete" onclick="deleteValuation('${val.id}')">Delete</button>
             </td>
           </tr>
         `;
@@ -551,7 +626,7 @@
 
     function showError(message) {
       const tbody = document.getElementById('valuations-tbody');
-      tbody.innerHTML = `<tr><td colspan="12" class="loading" style="color: #e74c3c;">${message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" class="loading" style="color: #e74c3c;">${message}</td></tr>`;
     }
 
     // Initialize

@@ -99,9 +99,7 @@ function validateValuationData(data) {
   if (!data.salesperson_name || data.salesperson_name.includes('[') || data.salesperson_name.toLowerCase().includes('agent/salesperson')) {
     missingFields.push('Salesperson Name');
   }
-  if (!data.agent_number || data.agent_number.includes('[') || data.agent_number.toLowerCase().includes('phone number')) {
-    missingFields.push('Agent Number');
-  }
+  // Agent number is optional - removed from required validation
   if (!data.banker_name_requested || data.banker_name_requested.includes('[') || data.banker_name_requested.toLowerCase().includes('banker name')) {
     missingFields.push('Banker Name');
   }
@@ -129,10 +127,10 @@ Address: [property address]
 Size: [property size in sqft]
 Asking: [asking price]
 Salesperson Name: [agent/salesperson name]
-Agent Number: [phone number]
+Agent Number: [phone number] (optional)
 Banker Name: [banker name]
 
-All fields are mandatory and must have actual values (not placeholders).`;
+Required fields must have actual values (not placeholders). Agent Number is optional.`;
 }
 
 /**
