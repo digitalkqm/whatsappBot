@@ -134,6 +134,12 @@ We are pleased to inform you that our interest rates have been updated:
 Contact us today for more details!
 ```
 
+**How {name} Personalization Works:**
+- The `{name}` placeholder is automatically replaced with each contact's name
+- Example: If sending to "John Tan", the message becomes "Dear John Tan, ..."
+- If sending to "Mary Lee", the message becomes "Dear Mary Lee, ..."
+- If a contact has no name, it defaults to "Valued Customer"
+
 **Best Practices:**
 - Keep batch size at 10 to avoid WhatsApp restrictions
 - Use 7-second delay to appear more human-like
@@ -245,7 +251,7 @@ The frontend connects to these backend API endpoints:
 | `/api/broadcast-contacts/:id` | GET | Get single contact details |
 | `/api/broadcast-contacts/:id` | DELETE | Delete single contact |
 | `/api/broadcast-contacts/bulk` | DELETE | Delete multiple contacts |
-| `/api/broadcast/interest-rate` | POST | Start broadcast campaign |
+| `/api/broadcast/interest-rate` | POST | Start broadcast campaign with {name} personalization |
 
 ---
 
