@@ -1989,9 +1989,48 @@ app.delete('/api/broadcast-contacts/bulk', async (req, res) => {
 // BROADCAST MESSAGING API ENDPOINTS
 // ============================================
 
+// Helper function to send broadcast completion notification
+async function sendBroadcastNotification(phoneNumber, summary) {
+  try {
+    // Format phone number for WhatsApp
+    const jid = phoneNumber.includes('@') ? phoneNumber : `${phoneNumber}@c.us`;
+
+    // Build notification message
+    let notificationMessage = `📢 *Broadcast Summary*\n\n`;
+
+    if (summary.status === 'completed') {
+      notificationMessage += `Status: ✅ Completed\n`;
+    } else if (summary.status === 'failed') {
+      notificationMessage += `Status: ❌ Failed\n`;
+    } else if (summary.status === 'disrupted') {
+      notificationMessage += `Status: ⚠️ Disrupted\n`;
+    }
+
+    notificationMessage += `Total Contacts: ${summary.total}\n`;
+    notificationMessage += `Successfully Sent: ${summary.sent}\n`;
+    notificationMessage += `Failed: ${summary.failed}\n\n`;
+    notificationMessage += `Broadcast ID: ${summary.broadcast_id}\n`;
+    notificationMessage += `Completed at: ${summary.completed_at}`;
+
+    // Send via internal API
+    const response = await axios.post(`${process.env.APP_URL || 'http://localhost:3000'}/send-message`, {
+      jid,
+      message: notificationMessage
+    });
+
+    if (response.status === 200) {
+      log('info', `✅ Notification sent to ${phoneNumber}`);
+    } else {
+      log('error', `❌ Failed to send notification to ${phoneNumber}`);
+    }
+  } catch (error) {
+    log('error', `❌ Error sending notification: ${error.message}`);
+  }
+}
+
 // Send interest rate broadcast to selected contacts
 app.post('/api/broadcast/interest-rate', async (req, res) => {
-  const { contacts, message, image_url, batch_size, delay_between_messages } = req.body;
+  const { contacts, message, image_url, batch_size, delay_between_messages, notification_contact } = req.body;
 
   if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
     return res.status(400).json({ success: false, error: 'No contacts provided' });
@@ -2005,16 +2044,79 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
     // Generate unique broadcast ID
     const broadcastId = `broadcast_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
+    // Create broadcast execution record in database
+    const { data: execution, error: execError } = await supabase
+      .from('broadcast_executions')
+      .insert({
+        broadcast_id: broadcastId,
+        name: `Interest Rate Broadcast ${new Date().toLocaleString()}`,
+        status: 'running',
+        total_contacts: contacts.length,
+        current_index: 0,
+        sent_count: 0,
+        failed_count: 0,
+        batch_size: batch_size || 1,
+        delay_between_messages: delay_between_messages || 7000,
+        message_template: message,
+        image_url: image_url || null,
+        notification_contact: notification_contact || null,
+        started_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (execError) {
+      log('error', `❌ Failed to create broadcast execution: ${execError.message}`);
+      return res.status(500).json({ success: false, error: 'Failed to initialize broadcast' });
+    }
+
+    // Create broadcast message records for each contact
+    const messageRecords = contacts.map((contact, index) => ({
+      execution_id: execution.id,
+      contact_id: contact.id,
+      recipient_name: contact.name,
+      recipient_phone: contact.phone,
+      status: 'pending',
+      queued_at: new Date().toISOString(),
+      send_order: index + 1
+    }));
+
+    const { error: msgError } = await supabase
+      .from('broadcast_messages')
+      .insert(messageRecords);
+
+    if (msgError) {
+      log('error', `❌ Failed to create message records: ${msgError.message}`);
+    }
+
     // Start broadcast in background (don't wait for completion)
     setTimeout(async () => {
       const delayMs = delay_between_messages || 7000;
       let successCount = 0;
       let failedCount = 0;
 
-      log('info', `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay: ${delayMs}ms)`);
+      try {
+        log('info', `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay: ${delayMs}ms)`);
+
+      // Emit initial status via WebSocket
+      broadcastToClients({
+        type: 'broadcast_status',
+        data: {
+          broadcast_id: broadcastId,
+          execution_id: execution.id,
+          status: 'running',
+          total: contacts.length,
+          sent: 0,
+          failed: 0,
+          current_index: 0,
+          progress: 0
+        }
+      });
 
       for (let i = 0; i < contacts.length; i++) {
         const contact = contacts[i];
+        let messageStatus = 'failed';
+        let errorMessage = null;
 
         try {
           // Replace {name} placeholder with actual contact name
@@ -2022,6 +2124,13 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
 
           // Format phone number for WhatsApp (e.g., 6591234567@c.us)
           const jid = contact.phone.includes('@') ? contact.phone : `${contact.phone}@c.us`;
+
+          // Update message status to 'sending'
+          await supabase
+            .from('broadcast_messages')
+            .update({ status: 'sending' })
+            .eq('execution_id', execution.id)
+            .eq('contact_id', contact.id);
 
           // Send message via internal API
           const response = await axios.post(`${process.env.APP_URL || 'http://localhost:3000'}/send-message`, {
@@ -2032,24 +2141,155 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
 
           if (response.status === 200) {
             successCount++;
+            messageStatus = 'sent';
             log('info', `✅ Sent to ${contact.name} (${contact.phone}) [${successCount}/${contacts.length}]`);
           } else {
             failedCount++;
+            errorMessage = 'Failed to send message';
             log('error', `❌ Failed to send to ${contact.name} (${contact.phone})`);
-          }
-
-          // Wait between messages (except for last message)
-          if (i < contacts.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
           }
 
         } catch (error) {
           failedCount++;
+          errorMessage = error.message;
           log('error', `❌ Error sending to ${contact.name}: ${error.message}`);
+        }
+
+        // Update message record with result
+        await supabase
+          .from('broadcast_messages')
+          .update({
+            status: messageStatus,
+            sent_at: messageStatus === 'sent' ? new Date().toISOString() : null,
+            error_message: errorMessage
+          })
+          .eq('execution_id', execution.id)
+          .eq('contact_id', contact.id);
+
+        // Update broadcast execution progress
+        const progress = Math.round(((i + 1) / contacts.length) * 100);
+        await supabase
+          .from('broadcast_executions')
+          .update({
+            current_index: i + 1,
+            sent_count: successCount,
+            failed_count: failedCount,
+            last_sent_at: new Date().toISOString()
+          })
+          .eq('id', execution.id);
+
+        // Emit progress update via WebSocket
+        broadcastToClients({
+          type: 'broadcast_status',
+          data: {
+            broadcast_id: broadcastId,
+            execution_id: execution.id,
+            status: 'running',
+            total: contacts.length,
+            sent: successCount,
+            failed: failedCount,
+            current_index: i + 1,
+            progress: progress,
+            current_contact: {
+              id: contact.id,
+              name: contact.name,
+              phone: contact.phone,
+              status: messageStatus
+            }
+          }
+        });
+
+        // Wait between messages (except for last message)
+        if (i < contacts.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
         }
       }
 
+      // Mark broadcast as completed
+      await supabase
+        .from('broadcast_executions')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', execution.id);
+
+      // Emit completion status via WebSocket
+      broadcastToClients({
+        type: 'broadcast_status',
+        data: {
+          broadcast_id: broadcastId,
+          execution_id: execution.id,
+          status: 'completed',
+          total: contacts.length,
+          sent: successCount,
+          failed: failedCount,
+          current_index: contacts.length,
+          progress: 100
+        }
+      });
+
       log('info', `📊 Broadcast complete: ${successCount} sent, ${failedCount} failed`);
+
+        // Send notification to notification contact if provided
+        if (execution.notification_contact) {
+          await sendBroadcastNotification(
+            execution.notification_contact,
+            {
+              status: 'completed',
+              broadcast_id: broadcastId,
+              total: contacts.length,
+              sent: successCount,
+              failed: failedCount,
+              completed_at: new Date().toLocaleString()
+            }
+          );
+        }
+      } catch (error) {
+        // Handle broadcast failure/disruption
+        log('error', `❌ Broadcast failed: ${error.message}`);
+
+        // Mark broadcast as failed
+        await supabase
+          .from('broadcast_executions')
+          .update({
+            status: 'failed',
+            error_message: error.message,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', execution.id);
+
+        // Emit failure status via WebSocket
+        broadcastToClients({
+          type: 'broadcast_status',
+          data: {
+            broadcast_id: broadcastId,
+            execution_id: execution.id,
+            status: 'failed',
+            total: contacts.length,
+            sent: successCount,
+            failed: failedCount,
+            current_index: successCount + failedCount,
+            progress: Math.round(((successCount + failedCount) / contacts.length) * 100),
+            error: error.message
+          }
+        });
+
+        // Send notification to notification contact if provided
+        if (execution.notification_contact) {
+          await sendBroadcastNotification(
+            execution.notification_contact,
+            {
+              status: 'failed',
+              broadcast_id: broadcastId,
+              total: contacts.length,
+              sent: successCount,
+              failed: failedCount,
+              completed_at: new Date().toLocaleString()
+            }
+          );
+        }
+      }
     }, 100);
 
     // Return immediately to frontend
@@ -2058,6 +2298,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       message: `Broadcast started for ${contacts.length} contacts`,
       data: {
         broadcast_id: broadcastId,
+        execution_id: execution.id,
         total: contacts.length,
         delay_between_messages
       }
@@ -2065,6 +2306,103 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
 
   } catch (error) {
     log('error', `❌ Broadcast error: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get broadcast status by broadcast_id or execution_id
+app.get('/api/broadcast/status/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Try to find execution by broadcast_id first, then by execution_id
+    let query = supabase
+      .from('broadcast_executions')
+      .select('*');
+
+    // Check if ID is numeric (execution_id) or string (broadcast_id)
+    if (id.startsWith('broadcast_')) {
+      query = query.eq('broadcast_id', id);
+    } else {
+      query = query.eq('id', parseInt(id));
+    }
+
+    const { data: execution, error: execError } = await query.single();
+
+    if (execError || !execution) {
+      return res.status(404).json({
+        success: false,
+        error: 'Broadcast not found'
+      });
+    }
+
+    // Get detailed message status
+    const { data: messages, error: msgError } = await supabase
+      .from('broadcast_messages')
+      .select('*')
+      .eq('execution_id', execution.id)
+      .order('send_order', { ascending: true });
+
+    if (msgError) {
+      log('error', `❌ Error fetching broadcast messages: ${msgError.message}`);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        execution: execution,
+        messages: messages || [],
+        summary: {
+          broadcast_id: execution.broadcast_id,
+          execution_id: execution.id,
+          status: execution.status,
+          total: execution.total_contacts,
+          sent: execution.sent_count,
+          failed: execution.failed_count,
+          current_index: execution.current_index,
+          progress: Math.round((execution.current_index / execution.total_contacts) * 100),
+          started_at: execution.started_at,
+          completed_at: execution.completed_at
+        }
+      }
+    });
+
+  } catch (error) {
+    log('error', `❌ Error fetching broadcast status: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get list of recent broadcast executions
+app.get('/api/broadcast/history', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+  const status = req.query.status; // Filter by status if provided
+
+  try {
+    let query = supabase
+      .from('broadcast_executions')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(limit);
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data: executions, error } = await query;
+
+    if (error) {
+      log('error', `❌ Error fetching broadcast history: ${error.message}`);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    res.json({
+      success: true,
+      data: executions || []
+    });
+
+  } catch (error) {
+    log('error', `❌ Error fetching broadcast history: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 });

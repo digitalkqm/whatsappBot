@@ -173,6 +173,11 @@
       color: #991b1b;
     }
 
+    .status-sending {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
     .action-buttons {
       display: flex;
       gap: 0.5rem;
@@ -517,7 +522,6 @@
       <div class="tabs">
         <button class="tab active" onclick="switchTab('manual')">Manual Entry</button>
         <button class="tab" onclick="switchTab('csv')">CSV Upload</button>
-        <button class="tab" onclick="switchTab('sheets')">Google Sheets</button>
       </div>
 
       <!-- Manual Entry Tab -->
@@ -599,40 +603,6 @@
           </div>
         </form>
       </div>
-
-      <!-- Google Sheets Tab -->
-      <div id="sheetsTab" class="tab-content">
-        <form id="sheetsForm">
-          <div class="form-group">
-            <label for="sheetsListName">List Name *</label>
-            <input type="text" id="sheetsListName" required placeholder="e.g., Client Database">
-          </div>
-
-          <div class="form-group">
-            <label for="spreadsheetId">Spreadsheet ID *</label>
-            <input type="text" id="spreadsheetId" required placeholder="From Google Sheets URL">
-            <small>
-              Find in URL: https://docs.google.com/spreadsheets/d/<strong>SPREADSHEET_ID</strong>/edit
-            </small>
-          </div>
-
-          <div class="form-group">
-            <label for="sheetName">Sheet Name</label>
-            <input type="text" id="sheetName" placeholder="Default: Clients">
-          </div>
-
-          <div class="form-group">
-            <label for="sheetRange">Range</label>
-            <input type="text" id="sheetRange" placeholder="Default: A2:D1000">
-            <small>Expected columns: Name, Phone, Email, Tier</small>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">Sync from Google Sheets</button>
-          </div>
-        </form>
-      </div>
     </div>
   </div>
 
@@ -710,6 +680,12 @@
           <label for="broadcastImage">Image URL (optional)</label>
           <input type="url" id="broadcastImage" placeholder="https://example.com/image.jpg">
           <small>Include an image to make your message more engaging</small>
+        </div>
+
+        <div class="form-group">
+          <label for="notificationContact">Notification Contact (optional)</label>
+          <input type="tel" id="notificationContact" placeholder="65XXXXXXXX">
+          <small>Receive a summary message when broadcast completes/fails (format: 65XXXXXXXX)</small>
         </div>
 
         <div class="form-group">
