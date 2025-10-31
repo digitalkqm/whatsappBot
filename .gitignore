@@ -32,3 +32,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 temp/
+
+# Prevent library source duplicates
+whatsapp-web.js/

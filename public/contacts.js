@@ -41,7 +41,6 @@ function setupEventListeners() {
 
   // Bulk action buttons
   document.getElementById('broadcastBtn').addEventListener('click', openBroadcastModal);
-  document.getElementById('deleteSelectedBtn').addEventListener('click', handleDeleteSelected);
 
   // Pagination
   document.getElementById('prevPage').addEventListener('click', () => changePage(-1));
@@ -186,17 +185,14 @@ function updateBulkActionsUI() {
   const selectedCountEl = document.getElementById('selectedCount');
   const selectedCountText = document.getElementById('selectedCountText');
   const broadcastBtn = document.getElementById('broadcastBtn');
-  const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 
   if (count > 0) {
     selectedCountEl.style.display = 'block';
     selectedCountText.textContent = `${count} selected`;
     broadcastBtn.style.display = 'block';
-    deleteSelectedBtn.style.display = 'block';
   } else {
     selectedCountEl.style.display = 'none';
     broadcastBtn.style.display = 'none';
-    deleteSelectedBtn.style.display = 'none';
   }
 
   // Update select all checkbox state
@@ -568,39 +564,6 @@ async function handleDeleteContact(contactId) {
   }
 }
 
-// Handle delete selected contacts
-async function handleDeleteSelected() {
-  if (selectedContacts.size === 0) {
-    showNotification('No contacts selected', 'error');
-    return;
-  }
-
-  if (!confirm(`Are you sure you want to delete ${selectedContacts.size} contacts? This action cannot be undone.`)) {
-    return;
-  }
-
-  try {
-    const contactIds = Array.from(selectedContacts);
-    const response = await fetch('/api/broadcast-contacts/bulk', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: contactIds })
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      showNotification(`Successfully deleted ${selectedContacts.size} contacts`, 'success');
-      selectedContacts.clear();
-      await loadAllContacts();
-    } else {
-      showNotification(result.error || 'Failed to delete contacts', 'error');
-    }
-  } catch (error) {
-    console.error('Error deleting contacts:', error);
-    showNotification('Error deleting contacts', 'error');
-  }
-}
 
 // Open broadcast modal
 function openBroadcastModal() {
