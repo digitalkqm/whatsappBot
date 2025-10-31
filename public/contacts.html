@@ -439,18 +439,11 @@
   <div class="container">
     <header role="banner">
       <h1>📢 Broadcast Manager</h1>
-      <div class="header-actions">
-        <nav role="navigation" aria-label="Main navigation" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-          <a href="/" class="nav-link" aria-label="Dashboard">🏠 Dashboard</a>
-          <a href="/valuations.html" class="nav-link" aria-label="Valuations Management">📊 Valuations</a>
-          <a href="/bankers.html" class="nav-link" aria-label="Banker Management">🏦 Bankers</a>
-        </nav>
-        <div class="search-box">
-          <input type="text" id="searchInput" placeholder="Search contacts by name, phone, or email..." />
-        </div>
-        <button id="createListBtn" class="btn btn-primary">+ Create Contact List</button>
-        <button id="downloadTemplateBtn" class="btn btn-secondary">📥 Download CSV Template</button>
-      </div>
+      <nav role="navigation" aria-label="Main navigation" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="/" class="nav-link" aria-label="Dashboard">🏠 Dashboard</a>
+        <a href="/valuations.html" class="nav-link" aria-label="Valuations Management">📊 Valuations</a>
+        <a href="/bankers.html" class="nav-link" aria-label="Banker Management">🏦 Bankers</a>
+      </nav>
     </header>
 
     <main>
@@ -468,13 +461,18 @@
               🗑️ Delete Selected
             </button>
           </div>
-          <div>
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
             <select id="tierFilter" class="form-control">
               <option value="">All Tiers</option>
               <option value="VIP">VIP</option>
               <option value="Premium">Premium</option>
               <option value="Standard">Standard</option>
             </select>
+            <div class="search-box">
+              <input type="text" id="searchInput" placeholder="Search contacts by name, phone, or email..." />
+            </div>
+            <button id="createListBtn" class="btn btn-primary">+ Create Contact List</button>
+            <button id="downloadTemplateBtn" class="btn btn-secondary">📥 Download CSV Template</button>
           </div>
         </div>
 
