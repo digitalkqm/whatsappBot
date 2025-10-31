@@ -188,8 +188,11 @@ CREATE TABLE IF NOT EXISTS broadcast_messages (
   recipient_phone TEXT NOT NULL,
 
   -- Message
-  personalized_message TEXT NOT NULL,
+  personalized_message TEXT,
   image_url TEXT,
+
+  -- Ordering
+  send_order INTEGER,
 
   -- Status
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'delivered', 'read')),
@@ -213,6 +216,7 @@ CREATE INDEX IF NOT EXISTS idx_broadcast_msg_execution ON broadcast_messages(exe
 CREATE INDEX IF NOT EXISTS idx_broadcast_msg_contact ON broadcast_messages(contact_id);
 CREATE INDEX IF NOT EXISTS idx_broadcast_msg_status ON broadcast_messages(status);
 CREATE INDEX IF NOT EXISTS idx_broadcast_msg_sent ON broadcast_messages(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_broadcast_msg_send_order ON broadcast_messages(execution_id, send_order);
 
 -- ===================================================================
 -- TABLE 5: BROADCAST STATISTICS (Analytics & Reporting)
