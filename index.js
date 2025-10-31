@@ -2044,6 +2044,13 @@ async function sendBroadcastNotification(phoneNumber, summary) {
     notificationMessage += `Total Contacts: ${summary.total}\n`;
     notificationMessage += `Successfully Sent: ${summary.sent}\n`;
     notificationMessage += `Failed: ${summary.failed}\n\n`;
+
+    // Include last sent contact if available
+    if (summary.last_sent_contact) {
+      notificationMessage += `Last Sent To: ${summary.last_sent_contact.name}\n`;
+      notificationMessage += `Phone: ${summary.last_sent_contact.phone}\n\n`;
+    }
+
     notificationMessage += `Broadcast ID: ${summary.broadcast_id}\n`;
     notificationMessage += `Completed at: ${summary.completed_at}`;
 
@@ -2186,6 +2193,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       const delayMs = delay_between_messages || 7000;
       let successCount = 0;
       let failedCount = 0;
+      let lastSentContact = null; // Track the last successfully sent contact
 
       try {
         log('info', `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay: ${delayMs}ms)`);
@@ -2234,6 +2242,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
           if (response.status === 200) {
             successCount++;
             messageStatus = 'sent';
+            lastSentContact = { name: contact.name, phone: contact.phone }; // Track last sent contact
             log('info', `✅ Sent to ${contact.name} (${contact.phone}) [${successCount}/${contacts.length}]`);
           } else {
             failedCount++;
@@ -2333,6 +2342,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
               total: contacts.length,
               sent: successCount,
               failed: failedCount,
+              last_sent_contact: lastSentContact,
               completed_at: new Date().toLocaleString()
             }
           );
@@ -2377,6 +2387,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
               total: contacts.length,
               sent: successCount,
               failed: failedCount,
+              last_sent_contact: lastSentContact,
               completed_at: new Date().toLocaleString()
             }
           );
