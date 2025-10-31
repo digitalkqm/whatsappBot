@@ -56,6 +56,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_valuation_requests_updated_at ON valuation_requests;
 CREATE TRIGGER update_valuation_requests_updated_at
     BEFORE UPDATE ON valuation_requests
     FOR EACH ROW
@@ -102,6 +103,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_broadcast_unique_phone_per_list
   ON broadcast_contacts(list_id, phone);
 
 -- Trigger for auto-updating updated_at
+DROP TRIGGER IF EXISTS update_broadcast_contacts_updated_at ON broadcast_contacts;
 CREATE TRIGGER update_broadcast_contacts_updated_at
     BEFORE UPDATE ON broadcast_contacts
     FOR EACH ROW
