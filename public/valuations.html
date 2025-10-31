@@ -8,31 +8,6 @@
   <title>Valuation Requests - WhatsApp Bot</title>
   <link rel="stylesheet" href="/styles.css">
   <style>
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 15px;
-      margin-bottom: 20px;
-    }
-
-    .stat-card {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .stat-card h3 {
-      font-size: 14px;
-      color: #7f8c8d;
-      margin-bottom: 10px;
-    }
-
-    .stat-card .value {
-      font-size: 32px;
-      font-weight: bold;
-      color: #2c3e50;
-    }
 
     .filters {
       background: white;
@@ -107,8 +82,12 @@
       font-size: 13px;
     }
 
-    tr:hover {
+    tbody tr:hover {
       background: #f8f9fa;
+    }
+
+    thead tr:hover {
+      background: #34495e;
     }
 
     .status-badge {
@@ -269,48 +248,15 @@
 
     <main role="main">
 
-    <div class="stats" id="stats">
-      <div class="stat-card">
-        <h3>Total Requests</h3>
-        <div class="value" id="stat-total">0</div>
-      </div>
-      <div class="stat-card">
-        <h3>Pending</h3>
-        <div class="value" id="stat-pending">0</div>
-      </div>
-      <div class="stat-card">
-        <h3>Completed</h3>
-        <div class="value" id="stat-completed">0</div>
-      </div>
-      <div class="stat-card">
-        <h3>Completion Rate</h3>
-        <div class="value" id="stat-rate">0%</div>
-      </div>
-    </div>
-
     <div class="filters">
       <div class="filter-group">
         <div>
-          <label>Status</label>
-          <select id="filter-status">
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="forwarded">Forwarded</option>
-            <option value="replied_by_banker">Replied</option>
-            <option value="completed">Completed</option>
-          </select>
+          <label>Filter by Month</label>
+          <input type="month" id="filter-month" placeholder="Select month...">
         </div>
         <div>
           <label>Search</label>
           <input type="text" id="filter-search" placeholder="Address or salesperson...">
-        </div>
-        <div>
-          <label>Date From</label>
-          <input type="date" id="filter-date-from">
-        </div>
-        <div>
-          <label>Date To</label>
-          <input type="date" id="filter-date-to">
         </div>
       </div>
       <div class="actions">
@@ -347,6 +293,7 @@
           </tbody>
         </table>
       </div>
+      <div id="pagination-controls"></div>
     </div>
 
     <!-- View Details Modal -->
@@ -365,24 +312,8 @@
   <script>
     let currentData = [];
     let currentFilters = {};
-
-    async function loadStatistics() {
-      try {
-        const params = new URLSearchParams(currentFilters);
-        const response = await fetch(`/api/valuations/statistics/summary?${params}`);
-        const result = await response.json();
-
-        if (result.success) {
-          const stats = result.data;
-          document.getElementById('stat-total').textContent = stats.total || 0;
-          document.getElementById('stat-pending').textContent = stats.by_status?.pending || 0;
-          document.getElementById('stat-completed').textContent = stats.by_status?.completed || 0;
-          document.getElementById('stat-rate').textContent = stats.completion_rate + '%';
-        }
-      } catch (error) {
-        console.error('Error loading statistics:', error);
-      }
-    }
+    let currentPage = 1;
+    const itemsPerPage = 10;
 
     async function loadValuations() {
       try {
@@ -392,7 +323,8 @@
 
         if (result.success) {
           currentData = result.data;
-          renderTable(currentData);
+          currentPage = 1; // Reset to first page on new data load
+          renderTable();
         } else {
           showError('Failed to load valuations');
         }
@@ -402,15 +334,22 @@
       }
     }
 
-    function renderTable(data) {
+    function renderTable() {
       const tbody = document.getElementById('valuations-tbody');
 
-      if (data.length === 0) {
+      if (currentData.length === 0) {
         tbody.innerHTML = '<tr><td colspan="12" class="empty-state"><h3>No valuations found</h3><p>Try adjusting your filters</p></td></tr>';
+        renderPagination(0);
         return;
       }
 
-      tbody.innerHTML = data.map(val => {
+      // Calculate pagination
+      const totalPages = Math.ceil(currentData.length / itemsPerPage);
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedData = currentData.slice(startIndex, endIndex);
+
+      tbody.innerHTML = paginatedData.map(val => {
         const created = new Date(val.created_at).toLocaleString();
         const statusClass = `status-${val.status.replace(/_/g, '-')}`;
 
@@ -442,6 +381,39 @@
           </tr>
         `;
       }).join('');
+
+      renderPagination(totalPages);
+    }
+
+    function renderPagination(totalPages) {
+      const paginationContainer = document.getElementById('pagination-controls');
+
+      if (totalPages <= 1) {
+        paginationContainer.innerHTML = '';
+        return;
+      }
+
+      let html = '<div class="pagination">';
+
+      // Previous button
+      html += `<button class="btn-secondary" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>`;
+
+      // Page info
+      html += `<span style="padding: 10px; font-weight: 500;">Page ${currentPage} of ${totalPages}</span>`;
+
+      // Next button
+      html += `<button class="btn-secondary" onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>`;
+
+      html += '</div>';
+      paginationContainer.innerHTML = html;
+    }
+
+    function changePage(page) {
+      const totalPages = Math.ceil(currentData.length / itemsPerPage);
+      if (page < 1 || page > totalPages) return;
+
+      currentPage = page;
+      renderTable();
     }
 
     async function viewDetails(id) {
@@ -528,12 +500,21 @@
     }
 
     function applyFilters() {
+      const monthValue = document.getElementById('filter-month').value;
+
       currentFilters = {
-        status: document.getElementById('filter-status').value,
         search: document.getElementById('filter-search').value,
-        date_from: document.getElementById('filter-date-from').value,
-        date_to: document.getElementById('filter-date-to').value,
       };
+
+      // If month is selected, calculate date_from and date_to
+      if (monthValue) {
+        const [year, month] = monthValue.split('-');
+        const firstDay = new Date(year, month - 1, 1);
+        const lastDay = new Date(year, month, 0);
+
+        currentFilters.date_from = firstDay.toISOString().split('T')[0];
+        currentFilters.date_to = lastDay.toISOString().split('T')[0];
+      }
 
       // Remove empty filters
       Object.keys(currentFilters).forEach(key => {
@@ -544,10 +525,8 @@
     }
 
     function resetFilters() {
-      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-month').value = '';
       document.getElementById('filter-search').value = '';
-      document.getElementById('filter-date-from').value = '';
-      document.getElementById('filter-date-to').value = '';
       currentFilters = {};
       refreshData();
     }
@@ -563,7 +542,6 @@
     }
 
     function refreshData() {
-      loadStatistics();
       loadValuations();
     }
 
