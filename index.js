@@ -48,8 +48,7 @@ const HUMAN_CONFIG = {
 
   // Rate limiting
   MAX_MESSAGES_PER_HOUR: 80,   // Maximum messages to process per hour
-  MAX_MESSAGES_PER_DAY: 680,   // Maximum messages to process per day
-  MAX_MESSAGES_PER_GROUP_PER_HOUR: 20, // Maximum messages per group per hour
+  MAX_MESSAGES_PER_DAY: 500,   // Maximum messages to process per day
   COOLDOWN_BETWEEN_ACTIONS: 250, // Minimum time between any actions
 
   // Activity patterns (24-hour format)
@@ -65,12 +64,6 @@ const HUMAN_CONFIG = {
   // Message patterns
   IGNORE_PROBABILITY: 0,       // Message ignoring disabled per user request
   DOUBLE_CHECK_PROBABILITY: 0.1, // 10% chance to re-read a message
-
-  // Random "away" states
-  RANDOM_AWAY_PROBABILITY: 0.05, // 5% chance to go "away"
-  AWAY_DURATION_MIN: 15 * 60 * 1000, // 15 minutes minimum away time
-  AWAY_DURATION_MAX: 45 * 60 * 1000, // 45 minutes maximum away time
-
   // Weekend/weekday patterns
   WEEKEND_DELAY_MULTIPLIER: 1.5, // 50% slower on weekends
 
@@ -87,18 +80,16 @@ const HUMAN_CONFIG = {
 class HumanBehaviorManager {
   constructor() {
     this.messageCount = { hourly: 0, daily: 0 };
-    this.groupMessageCounts = new Map(); // Track messages per group
     this.lastAction = 0;
     this.lastHourReset = Date.now();
     this.lastDayReset = Date.now();
     this.isOnBreak = false;
-    this.isOnAway = false;
-    this.awayStartTime = 0;
     this.breakStartTime = 0;
     this.lastBreakTime = Date.now();
     this.processedMessages = new Set(); // Track processed message IDs
     this.messageQueue = []; // Queue for processing messages
     this.isProcessingQueue = false;
+    this.client = null; // WhatsApp client reference for notifications
 
     // Randomized active hours (set daily)
     this.dailyActiveHours = this.getRandomizedActiveHours();
@@ -157,34 +148,6 @@ class HumanBehaviorManager {
     }
   }
 
-  // Check if should go away randomly
-  shouldGoAway() {
-    if (this.isOnAway) return false;
-    return Math.random() < HUMAN_CONFIG.RANDOM_AWAY_PROBABILITY;
-  }
-
-  // Start random away state
-  async startAwayState() {
-    if (this.isOnAway) return;
-
-    this.isOnAway = true;
-    this.awayStartTime = Date.now();
-    const duration = HUMAN_CONFIG.AWAY_DURATION_MIN +
-                     Math.random() * (HUMAN_CONFIG.AWAY_DURATION_MAX - HUMAN_CONFIG.AWAY_DURATION_MIN);
-
-    log('info', `🚶 Going away for ${Math.round(duration / 60000)} minutes`);
-
-    setTimeout(() => {
-      this.endAwayState();
-    }, duration);
-  }
-
-  // End away state
-  endAwayState() {
-    this.isOnAway = false;
-    log('info', '👋 Back from away state');
-  }
-
   // Check if we should take a break
   shouldTakeBreak() {
     const timeSinceLastBreak = Date.now() - this.lastBreakTime;
@@ -220,44 +183,23 @@ class HumanBehaviorManager {
       return false;
     }
 
-    if (this.isOnAway) {
-      log('info', '🚶 Currently away, skipping message processing');
-      return false;
-    }
-
     if (this.messageCount.hourly >= HUMAN_CONFIG.MAX_MESSAGES_PER_HOUR) {
       log('warn', '⏱️ Hourly message limit reached, skipping message');
-      return false;
+      return { allowed: false, reason: 'hourly_limit', groupId };
     }
 
     if (this.messageCount.daily >= HUMAN_CONFIG.MAX_MESSAGES_PER_DAY) {
       log('warn', '📅 Daily message limit reached, skipping message');
-      return false;
-    }
-
-    // Check per-group rate limiting
-    if (groupId) {
-      const groupCount = this.groupMessageCounts.get(groupId) || { count: 0, lastReset: Date.now() };
-
-      // Reset group counter if an hour has passed
-      if (Date.now() - groupCount.lastReset > 60 * 60 * 1000) {
-        groupCount.count = 0;
-        groupCount.lastReset = Date.now();
-      }
-
-      if (groupCount.count >= HUMAN_CONFIG.MAX_MESSAGES_PER_GROUP_PER_HOUR) {
-        log('warn', `⏱️ Group hourly message limit reached for ${groupId}`);
-        return false;
-      }
+      return { allowed: false, reason: 'daily_limit', groupId };
     }
 
     // Check cooldown between actions
     const timeSinceLastAction = Date.now() - this.lastAction;
     if (timeSinceLastAction < HUMAN_CONFIG.COOLDOWN_BETWEEN_ACTIONS) {
-      return false;
+      return { allowed: false, reason: 'cooldown', groupId };
     }
 
-    return true;
+    return { allowed: true };
   }
 
   // Reset counters when needed
@@ -286,13 +228,6 @@ class HumanBehaviorManager {
     this.lastAction = Date.now();
     this.processedMessages.add(messageId);
 
-    // Track per-group message count
-    if (groupId) {
-      const groupCount = this.groupMessageCounts.get(groupId) || { count: 0, lastReset: Date.now() };
-      groupCount.count++;
-      this.groupMessageCounts.set(groupId, groupCount);
-    }
-
     // Clean old processed messages (keep only last 1000)
     if (this.processedMessages.size > 1000) {
       const messagesToRemove = Array.from(this.processedMessages).slice(0, 100);
@@ -303,6 +238,30 @@ class HumanBehaviorManager {
   // Check if message was already processed
   wasMessageProcessed(messageId) {
     return this.processedMessages.has(messageId);
+  }
+
+  // Send rate limit notification to group
+  async sendRateLimitNotification(groupId, reason) {
+    if (!this.client || !groupId) {
+      log('warn', '⚠️ Cannot send rate limit notification: client or groupId missing');
+      return;
+    }
+
+    try {
+      let message = '';
+      if (reason === 'hourly_limit') {
+        message = '⏱️ *Rate Limit Reached*\n\nThe bot has reached its hourly message limit (80 messages/hour).\n\nPlease wait for the next hour to continue processing valuation requests.';
+      } else if (reason === 'daily_limit') {
+        message = '📅 *Daily Rate Limit Reached*\n\nThe bot has reached its daily message limit (500 messages/day).\n\nProcessing will resume tomorrow. Thank you for your patience!';
+      } else {
+        return; // Don't send notification for cooldown
+      }
+
+      await this.client.sendMessage(groupId, message);
+      log('info', `📨 Rate limit notification sent to group ${groupId} (reason: ${reason})`);
+    } catch (err) {
+      log('error', `Failed to send rate limit notification: ${err.message}`);
+    }
   }
 
   // Generate human-like delay
@@ -383,12 +342,6 @@ class HumanBehaviorManager {
       return;
     }
 
-    // Check if should go away
-    if (this.shouldGoAway()) {
-      await this.startAwayState();
-      return;
-    }
-
     // Random chance to ignore message (simulate human oversight) - DISABLED per user request
     if (Math.random() < HUMAN_CONFIG.IGNORE_PROBABILITY) {
       log('info', '🤷 Randomly ignoring message (simulating human oversight)');
@@ -398,9 +351,15 @@ class HumanBehaviorManager {
     // Simulate network variability
     await this.simulateNetworkVariability();
 
-    // Check rate limits (include groupId for per-group limiting)
-    if (!this.canProcessMessage(payload.groupId)) {
-      log('info', '⏱️ Rate limit reached, skipping message processing');
+    // Check rate limits
+    const rateLimitCheck = this.canProcessMessage(payload.groupId);
+    if (!rateLimitCheck.allowed) {
+      log('info', `⏱️ Rate limit reached (${rateLimitCheck.reason}), skipping message processing`);
+
+      // Send notification for valuation request workflows when rate limited
+      if (rateLimitCheck.reason === 'hourly_limit' || rateLimitCheck.reason === 'daily_limit') {
+        await this.sendRateLimitNotification(rateLimitCheck.groupId, rateLimitCheck.reason);
+      }
       return;
     }
 
@@ -1215,6 +1174,10 @@ function setupClientEvents(c) {
     log('info', '✅ WhatsApp client is ready.');
     currentQRCode = null; // Clear QR code when authenticated
 
+    // Set client reference for human behavior notifications
+    humanBehavior.client = c;
+    log('info', '🔗 Client reference set for human behavior notifications');
+
     // Broadcast ready status to dashboard
     broadcastToClients({ type: 'ready', authenticated: true });
 
@@ -1630,11 +1593,15 @@ app.post('/send-message', async (req, res) => {
   const messagePriority = validPriorities.includes(priority) ? priority : 'normal';
 
   // Check rate limits for sending messages (skip for critical priority)
-  if (messagePriority !== 'critical' && !humanBehavior.canProcessMessage()) {
-    return res.status(429).json({
-      success: false,
-      error: 'Rate limit exceeded or bot is on break'
-    });
+  if (messagePriority !== 'critical') {
+    const rateLimitCheck = humanBehavior.canProcessMessage();
+    if (!rateLimitCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded or bot is on break',
+        reason: rateLimitCheck.reason
+      });
+    }
   }
 
   try {
