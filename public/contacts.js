@@ -44,7 +44,7 @@ function setupEventListeners() {
 // Load all contacts from database
 async function loadAllContacts() {
   try {
-    const response = await fetch('/api/contacts/all');
+    const response = await fetch('/api/broadcast-contacts');
     const result = await response.json();
 
     if (result.success) {
@@ -408,7 +408,7 @@ async function handleManualSubmit(e) {
   }
 
   try {
-    const response = await fetch('/api/contacts/create', {
+    const response = await fetch('/api/broadcast-contacts/create-list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -447,18 +447,13 @@ async function handleCSVSubmit(e) {
   const listName = document.getElementById('csvListName').value;
 
   try {
-    const response = await fetch('/api/contacts/import/csv', {
+    const response = await fetch('/api/broadcast-contacts/import-csv', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         csv_data: csvData,
         list_name: listName,
-        mapping: {
-          name: 'name',
-          phone: 'phone',
-          email: 'email',
-          tier: 'tier'
-        }
+        description: ''
       })
     });
 
@@ -548,7 +543,7 @@ async function handleEditSubmit(e) {
   const tier = document.getElementById('editTier').value;
 
   try {
-    const response = await fetch(`/api/contacts/${contactId}/update`, {
+    const response = await fetch(`/api/broadcast-contacts/${contactId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -581,7 +576,7 @@ async function handleDeleteContact(contactId) {
   }
 
   try {
-    const response = await fetch(`/api/contacts/${contactId}/delete`, {
+    const response = await fetch(`/api/broadcast-contacts/${contactId}`, {
       method: 'DELETE'
     });
 
@@ -612,10 +607,10 @@ async function handleDeleteSelected() {
 
   try {
     const contactIds = Array.from(selectedContacts);
-    const response = await fetch('/api/contacts/bulk-delete', {
+    const response = await fetch('/api/broadcast-contacts/bulk', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_ids: contactIds })
+      body: JSON.stringify({ ids: contactIds })
     });
 
     const result = await response.json();

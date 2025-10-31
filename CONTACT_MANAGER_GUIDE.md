@@ -237,13 +237,14 @@ The frontend connects to these backend API endpoints:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/contacts/all` | GET | Load all contacts |
-| `/api/contacts/create` | POST | Create contact list manually |
-| `/api/contacts/import/csv` | POST | Import from CSV |
+| `/api/broadcast-contacts` | GET | Load all contacts across all lists |
+| `/api/broadcast-contacts/create-list` | POST | Create contact list with individual contacts |
+| `/api/broadcast-contacts/import-csv` | POST | Import contacts from CSV |
 | `/api/contacts/sync/google-sheets` | POST | Sync from Google Sheets |
-| `/api/contacts/:id/update` | PUT | Update single contact |
-| `/api/contacts/:id/delete` | DELETE | Delete single contact |
-| `/api/contacts/bulk-delete` | DELETE | Delete multiple contacts |
+| `/api/broadcast-contacts/:id` | PUT | Update single contact |
+| `/api/broadcast-contacts/:id` | GET | Get single contact details |
+| `/api/broadcast-contacts/:id` | DELETE | Delete single contact |
+| `/api/broadcast-contacts/bulk` | DELETE | Delete multiple contacts |
 | `/api/broadcast/interest-rate` | POST | Start broadcast campaign |
 
 ---

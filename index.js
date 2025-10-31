@@ -15,6 +15,7 @@ const { valuationReplyWorkflow } = require('./workflows/valuationReplySupabase')
 const WorkflowAPI = require('./api/workflowAPI');
 const TemplateAPI = require('./api/templateAPI');
 const ContactAPI = require('./api/contactAPI');
+const BroadcastContactAPI = require('./api/broadcastContactAPI');
 const ValuationAPI = require('./api/valuationAPI');
 const BankerAPI = require('./api/bankerAPI');
 
@@ -507,6 +508,7 @@ workflowEngine.registerWorkflow('valuation_reply', valuationReplyWorkflow); // N
 const workflowAPI = new WorkflowAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const templateAPI = new TemplateAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const contactAPI = new ContactAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
+const broadcastContactAPI = new BroadcastContactAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const valuationAPI = new ValuationAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bankerAPI = new BankerAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -1926,6 +1928,60 @@ app.get('/api/contacts/groups/whatsapp', async (req, res) => {
 
 app.get('/api/contacts/:id/statistics', async (req, res) => {
   const result = await contactAPI.getStatistics(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+// ============================================
+// BROADCAST CONTACTS API ENDPOINTS (Individual Contacts)
+// ============================================
+
+// Get all broadcast contacts across all lists
+app.get('/api/broadcast-contacts', async (req, res) => {
+  const filters = {
+    search: req.query.search,
+    tier: req.query.tier,
+    list_id: req.query.list_id,
+    is_active: req.query.is_active
+  };
+  const result = await broadcastContactAPI.getAllContacts(filters);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+// Get a single broadcast contact
+app.get('/api/broadcast-contacts/:id', async (req, res) => {
+  const result = await broadcastContactAPI.getContact(req.params.id);
+  res.status(result.success ? 200 : 404).json(result);
+});
+
+// Create contact list with broadcast contacts
+app.post('/api/broadcast-contacts/create-list', async (req, res) => {
+  const result = await broadcastContactAPI.createContactList(req.body);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+// Import contacts from CSV
+app.post('/api/broadcast-contacts/import-csv', async (req, res) => {
+  const { csv_data, list_name, description } = req.body;
+  const result = await broadcastContactAPI.importFromCSV(csv_data, list_name, description);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+// Update a single broadcast contact
+app.put('/api/broadcast-contacts/:id', async (req, res) => {
+  const result = await broadcastContactAPI.updateContact(req.params.id, req.body);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+// Delete a single broadcast contact
+app.delete('/api/broadcast-contacts/:id', async (req, res) => {
+  const result = await broadcastContactAPI.deleteContact(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+// Bulk delete broadcast contacts
+app.delete('/api/broadcast-contacts/bulk', async (req, res) => {
+  const { ids } = req.body;
+  const result = await broadcastContactAPI.bulkDeleteContacts(ids);
   res.status(result.success ? 200 : 400).json(result);
 });
 
