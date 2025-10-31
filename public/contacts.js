@@ -660,13 +660,31 @@ function closeBroadcastModal() {
   document.getElementById('broadcastForm').reset();
 }
 
+// Insert {name} placeholder at cursor position
+function insertNamePlaceholder() {
+  const textarea = document.getElementById('broadcastMessage');
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+
+  // Insert {name} at cursor position
+  textarea.value = text.substring(0, start) + '{name}' + text.substring(end);
+
+  // Move cursor after inserted text
+  textarea.selectionStart = textarea.selectionEnd = start + 6;
+  textarea.focus();
+}
+
+// Broadcast progress tracking
+let currentBroadcastId = null;
+let broadcastStatusInterval = null;
+
 // Handle broadcast form submission
 async function handleBroadcastSubmit(e) {
   e.preventDefault();
 
   const message = document.getElementById('broadcastMessage').value;
   const imageUrl = document.getElementById('broadcastImage').value;
-  const batchSize = parseInt(document.getElementById('batchSize').value) || 10;
   const delayBetween = parseInt(document.getElementById('delayBetween').value) || 7;
 
   const contacts = allContacts.filter(c => selectedContacts.has(c.id));
@@ -683,7 +701,6 @@ async function handleBroadcastSubmit(e) {
         })),
         message,
         image_url: imageUrl,
-        batch_size: batchSize,
         delay_between_messages: delayBetween * 1000
       })
     });
@@ -691,8 +708,9 @@ async function handleBroadcastSubmit(e) {
     const result = await response.json();
 
     if (result.success) {
-      showNotification(`Broadcast started! Sending to ${contacts.length} contacts`, 'success');
+      currentBroadcastId = result.data.broadcast_id;
       closeBroadcastModal();
+      showBroadcastProgress(contacts);
       selectedContacts.clear();
       updateBulkActionsUI();
     } else {
@@ -702,6 +720,85 @@ async function handleBroadcastSubmit(e) {
     console.error('Error starting broadcast:', error);
     showNotification('Error starting broadcast', 'error');
   }
+}
+
+// Show broadcast progress modal
+function showBroadcastProgress(contacts) {
+  const modal = document.getElementById('broadcastProgressModal');
+  modal.classList.add('active');
+
+  // Initialize progress
+  document.getElementById('totalContactsCount').textContent = contacts.length;
+  document.getElementById('sentContactsCount').textContent = '0';
+  document.getElementById('failedContactsCount').textContent = '0';
+  document.getElementById('progressPercentage').textContent = '0%';
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('broadcastStatusMessage').textContent = 'Starting broadcast...';
+  document.getElementById('closeProgressBtn').disabled = true;
+
+  // Populate status table
+  const tbody = document.getElementById('broadcastStatusTable');
+  tbody.innerHTML = contacts.map(c => `
+    <tr data-contact-id="${c.id}">
+      <td>${escapeHtml(c.name || 'Unknown')}</td>
+      <td>${escapeHtml(c.phone)}</td>
+      <td>
+        <span class="status-badge status-pending">⏳ Pending</span>
+      </td>
+    </tr>
+  `).join('');
+
+  // Start polling for status updates
+  startBroadcastStatusPolling(contacts.length);
+}
+
+// Poll for broadcast status updates
+function startBroadcastStatusPolling(totalContacts) {
+  let sentCount = 0;
+  let failedCount = 0;
+
+  // Simulate status updates (replace with actual API polling)
+  broadcastStatusInterval = setInterval(() => {
+    // This is a simulation - in production, poll /api/broadcast/status/:id
+    if (sentCount + failedCount < totalContacts) {
+      sentCount++;
+
+      // Update progress
+      const progress = ((sentCount + failedCount) / totalContacts) * 100;
+      document.getElementById('sentContactsCount').textContent = sentCount;
+      document.getElementById('progressPercentage').textContent = Math.round(progress) + '%';
+      document.getElementById('progressBar').style.width = progress + '%';
+
+      // Update status message
+      if (sentCount + failedCount === totalContacts) {
+        document.getElementById('broadcastStatusMessage').textContent = `✅ Broadcast complete! ${sentCount} sent, ${failedCount} failed`;
+        document.getElementById('closeProgressBtn').disabled = false;
+        clearInterval(broadcastStatusInterval);
+      } else {
+        document.getElementById('broadcastStatusMessage').textContent = `Sending messages... ${sentCount + failedCount}/${totalContacts}`;
+      }
+
+      // Update table row status
+      const rows = document.querySelectorAll('#broadcastStatusTable tr[data-contact-id]');
+      if (rows[sentCount - 1]) {
+        rows[sentCount - 1].querySelector('.status-badge').outerHTML =
+          '<span class="status-badge status-sent">✅ Sent</span>';
+      }
+    }
+  }, 7000); // Match delay_between_messages
+}
+
+// Close broadcast progress modal
+function closeBroadcastProgress() {
+  const modal = document.getElementById('broadcastProgressModal');
+  modal.classList.remove('active');
+
+  if (broadcastStatusInterval) {
+    clearInterval(broadcastStatusInterval);
+    broadcastStatusInterval = null;
+  }
+
+  currentBroadcastId = null;
 }
 
 // Show notification

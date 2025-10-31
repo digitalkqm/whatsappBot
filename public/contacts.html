@@ -149,6 +149,30 @@
       color: #475569;
     }
 
+    /* Status Badges */
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .status-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status-sent {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status-failed {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
     .action-buttons {
       display: flex;
       gap: 0.5rem;
@@ -674,20 +698,19 @@
 
         <div class="form-group">
           <label for="broadcastMessage">Message *</label>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <button type="button" class="btn btn-secondary btn-small" onclick="insertNamePlaceholder()" title="Insert {name} placeholder">
+              📝 Insert {name}
+            </button>
+            <small style="color: #64748b; margin: auto 0;">Click to insert personalized name placeholder</small>
+          </div>
           <textarea id="broadcastMessage" rows="6" required placeholder="Enter your interest rate update message..."></textarea>
-          <small>Use {name} to personalize with contact's name</small>
         </div>
 
         <div class="form-group">
           <label for="broadcastImage">Image URL (optional)</label>
           <input type="url" id="broadcastImage" placeholder="https://example.com/image.jpg">
           <small>Include an image to make your message more engaging</small>
-        </div>
-
-        <div class="form-group">
-          <label for="batchSize">Batch Size</label>
-          <input type="number" id="batchSize" value="10" min="1" max="50">
-          <small>Number of messages to send per batch (default: 10)</small>
         </div>
 
         <div class="form-group">
@@ -701,6 +724,72 @@
           <button type="submit" class="btn btn-success">Start Broadcast</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Broadcast Progress Modal -->
+  <div id="broadcastProgressModal" class="modal">
+    <div class="modal-content" style="max-width: 900px;">
+      <div class="modal-header">
+        <h2>📊 Broadcast Progress</h2>
+        <button class="close-modal" onclick="closeBroadcastProgress()">×</button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <!-- Progress Summary -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+          <div style="padding: 1rem; background: #f0f9ff; border-radius: 8px; text-align: center;">
+            <div style="font-size: 2rem; font-weight: bold; color: #0284c7;" id="totalContactsCount">0</div>
+            <div style="color: #64748b; font-size: 0.875rem;">Total Contacts</div>
+          </div>
+          <div style="padding: 1rem; background: #f0fdf4; border-radius: 8px; text-align: center;">
+            <div style="font-size: 2rem; font-weight: bold; color: #16a34a;" id="sentContactsCount">0</div>
+            <div style="color: #64748b; font-size: 0.875rem;">Sent</div>
+          </div>
+          <div style="padding: 1rem; background: #fef2f2; border-radius: 8px; text-align: center;">
+            <div style="font-size: 2rem; font-weight: bold; color: #dc2626;" id="failedContactsCount">0</div>
+            <div style="color: #64748b; font-size: 0.875rem;">Failed</div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div style="margin-bottom: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="font-weight: 500;">Progress</span>
+            <span id="progressPercentage">0%</span>
+          </div>
+          <div style="height: 20px; background: #e2e8f0; border-radius: 10px; overflow: hidden;">
+            <div id="progressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.3s;"></div>
+          </div>
+        </div>
+
+        <!-- Status Message -->
+        <div id="broadcastStatusMessage" style="padding: 1rem; background: #f8fafc; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; color: #64748b;">
+          Initializing broadcast...
+        </div>
+
+        <!-- Contact Status Table -->
+        <div style="max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <table class="contacts-table" style="margin: 0;">
+            <thead style="position: sticky; top: 0; background: white; z-index: 10;">
+              <tr>
+                <th style="width: 40%;">Contact</th>
+                <th style="width: 30%;">Phone</th>
+                <th style="width: 30%;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="broadcastStatusTable">
+              <!-- Populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="form-actions" style="margin-top: 1.5rem;">
+          <button type="button" class="btn btn-primary" onclick="closeBroadcastProgress()" id="closeProgressBtn" disabled>
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -2002,14 +2002,16 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
   }
 
   try {
+    // Generate unique broadcast ID
+    const broadcastId = `broadcast_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
     // Start broadcast in background (don't wait for completion)
     setTimeout(async () => {
-      const batchCount = batch_size || 10;
       const delayMs = delay_between_messages || 7000;
       let successCount = 0;
       let failedCount = 0;
 
-      log('info', `📢 Starting broadcast to ${contacts.length} contacts (batch: ${batchCount}, delay: ${delayMs}ms)`);
+      log('info', `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay: ${delayMs}ms)`);
 
       for (let i = 0; i < contacts.length; i++) {
         const contact = contacts[i];
@@ -2041,12 +2043,6 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             await new Promise(resolve => setTimeout(resolve, delayMs));
           }
 
-          // Wait longer between batches
-          if ((i + 1) % batchCount === 0 && i < contacts.length - 1) {
-            log('info', `⏸️  Batch complete. Waiting 30 seconds before next batch...`);
-            await new Promise(resolve => setTimeout(resolve, 30000));
-          }
-
         } catch (error) {
           failedCount++;
           log('error', `❌ Error sending to ${contact.name}: ${error.message}`);
@@ -2061,8 +2057,8 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       success: true,
       message: `Broadcast started for ${contacts.length} contacts`,
       data: {
+        broadcast_id: broadcastId,
         total: contacts.length,
-        batch_size,
         delay_between_messages
       }
     });
