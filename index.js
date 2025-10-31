@@ -1393,15 +1393,31 @@ async function startClient() {
   setupClientEvents(client);
 
   try {
-    await client.initialize();
-    log('info', '✅ WhatsApp client initialized.');
+    // Add 90-second timeout to prevent blocking forever
+    log('info', '⏳ Initializing WhatsApp client (90s timeout)...');
+
+    const initPromise = client.initialize();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Client initialization timeout after 90 seconds')), 90000)
+    );
+
+    await Promise.race([initPromise, timeoutPromise]);
+    log('info', '✅ WhatsApp client initialized successfully.');
 
     // Set client on workflow engine after initialization
     workflowEngine.setClient(client);
   } catch (err) {
-    log('error', `❌ WhatsApp client failed to initialize: ${err.message}`);
-    client = null;
-    workflowEngine.setClient(null);
+    log('error', `❌ WhatsApp client initialization failed: ${err.message}`);
+
+    // Don't set client to null - keep it for retry attempts
+    // The client might still initialize later (e.g., after QR scan)
+    if (err.message.includes('timeout')) {
+      log('warn', '⚠️  Client initialization timed out - may need QR code scan');
+      log('info', '💡 Check /qr-code endpoint to scan and authenticate');
+    } else {
+      client = null;
+      workflowEngine.setClient(null);
+    }
   }
 }
 
@@ -2021,23 +2037,44 @@ app.get('/api/bankers/banks/names', async (req, res) => {
   res.status(result.success ? 200 : 400).json(result);
 });
 
-// Health check endpoint
+// Health check endpoint - NON-BLOCKING for Render deployment
 app.get('/health', async (_, res) => {
   try {
-    const clientState = client ? await client.getState() : 'NO_CLIENT';
-    
+    // Don't block on client.getState() - check client existence only
+    let clientState = 'INITIALIZING';
+    if (client) {
+      try {
+        // Use Promise.race with timeout to avoid blocking
+        clientState = await Promise.race([
+          client.getState(),
+          new Promise((resolve) => setTimeout(() => resolve('INITIALIZING'), 1000))
+        ]);
+      } catch (err) {
+        clientState = 'ERROR';
+      }
+    } else {
+      clientState = 'NO_CLIENT';
+    }
+
+    // Quick Supabase check with timeout
     let supabaseStatus = 'UNKNOWN';
     try {
-      const { error } = await supabase.from('whatsapp_sessions').select('count(*)', { count: 'exact', head: true });
+      const supabaseCheck = supabase.from('whatsapp_sessions').select('count(*)', { count: 'exact', head: true });
+      const { error } = await Promise.race([
+        supabaseCheck,
+        new Promise((resolve) => setTimeout(() => resolve({ error: 'TIMEOUT' }), 2000))
+      ]);
       supabaseStatus = error ? 'ERROR' : 'CONNECTED';
     } catch (err) {
-      supabaseStatus = 'ERROR: ' + err.message;
+      supabaseStatus = 'ERROR';
     }
-    
+
     const mem = process.memoryUsage();
-    
+
     const health = {
-      status: clientState === 'CONNECTED' && supabaseStatus === 'CONNECTED' ? 'healthy' : 'degraded',
+      // Always return healthy if server is running - don't wait for WhatsApp
+      status: 'healthy',
+      server: 'running',
       version: BOT_VERSION,
       uptime: {
         seconds: Math.floor((Date.now() - startedAt) / 1000),
@@ -2045,7 +2082,7 @@ app.get('/health', async (_, res) => {
       },
       whatsapp: {
         state: clientState,
-        ready: client ? true : false,
+        ready: clientState === 'CONNECTED',
       },
       supabase: supabaseStatus,
       humanBehavior: humanBehavior.getStatus(),
@@ -2059,11 +2096,13 @@ app.get('/health', async (_, res) => {
       },
       timestamp: new Date().toISOString(),
     };
-    
+
     res.status(200).json(health);
   } catch (err) {
-    res.status(500).json({
-      status: 'error',
+    // Even on error, return 200 so Render knows server is alive
+    res.status(200).json({
+      status: 'healthy',
+      server: 'running',
       error: err.message,
       timestamp: new Date().toISOString(),
     });
@@ -2081,16 +2120,20 @@ const server = app.listen(PORT, () => {
   log('info', `📱 Dashboard: http://localhost:${PORT}`);
   log('info', `🤖 Bot Version: ${BOT_VERSION}`);
   log('info', `🧠 Human behavior enabled with smart timing and rate limiting`);
-  // Only delay in development for human-like behavior, start immediately in production
-  const startDelay = process.env.NODE_ENV === 'production' ? 0 : humanBehavior.getRandomDelay(3000, 8000);
 
-  if (startDelay > 0) {
-    log('info', `💻 Starting WhatsApp client in ${Math.round(startDelay/1000)} seconds...`);
-  } else {
-    log('info', '💻 Starting WhatsApp client immediately...');
-  }
+  // In production: delay 10 seconds to let health checks pass first
+  // In development: random delay for human-like behavior
+  const startDelay = process.env.NODE_ENV === 'production'
+    ? 10000  // 10 seconds delay in production
+    : humanBehavior.getRandomDelay(3000, 8000);
 
-  setTimeout(startClient, startDelay);
+  log('info', `💻 WhatsApp client will initialize in ${Math.round(startDelay/1000)} seconds...`);
+  log('info', '✅ Server is healthy and ready for requests');
+
+  setTimeout(() => {
+    log('info', '🔄 Starting WhatsApp client initialization (non-blocking)...');
+    startClient();
+  }, startDelay);
 });
 
 // WebSocket server for real-time updates

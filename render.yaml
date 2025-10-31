@@ -16,4 +16,9 @@ services:
       - key: PUPPETEER_ARGS
         value: --no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu
     autoDeploy: true
+    # Health check configuration - tolerant during startup
     healthCheckPath: /health
+    healthCheckInterval: 30000  # Check every 30 seconds
+    healthCheckTimeout: 5000    # 5 second timeout per check
+    healthCheckUnhealthyThreshold: 3  # Allow 3 failures before marking unhealthy
+    # This gives 90+ seconds for WhatsApp client to initialize without marking service unhealthy
