@@ -137,18 +137,18 @@ All fields are mandatory and must have actual values (not placeholders).`;
 
 /**
  * Route message to banker based on banker_name_requested
+ * Uses EXACT keyword matching (case-insensitive)
  */
 async function routeToBanker(bankerNameRequested) {
-  const lowerName = bankerNameRequested.toLowerCase();
+  const lowerName = bankerNameRequested.toLowerCase().trim();
 
   console.log(`🔍 Routing banker request: "${bankerNameRequested}" (lowercase: "${lowerName}")`);
 
-  // Find banker by routing keywords (highest priority first)
+  // Find banker by routing keywords (ordered by creation date only)
   const { data: bankers, error } = await supabase
     .from('bankers')
     .select('*')
     .eq('is_active', true)
-    .order('priority', { ascending: false })
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -163,28 +163,30 @@ async function routeToBanker(bankerNameRequested) {
 
   console.log(`📊 Found ${bankers.length} active banker(s):`);
   bankers.forEach((b, idx) => {
-    console.log(`   ${idx + 1}. ${b.name} (${b.bank_name}) - Keywords: ${JSON.stringify(b.routing_keywords || [])} - Priority: ${b.priority || 0}`);
+    const keyword = (b.routing_keywords && b.routing_keywords.length > 0) ? b.routing_keywords[0] : 'none';
+    console.log(`   ${idx + 1}. ${b.name} (${b.bank_name}) - Keyword: "${keyword}"`);
   });
 
-  // Find matching banker
+  // Find matching banker using EXACT keyword match
   for (const banker of bankers) {
     const keywords = banker.routing_keywords || [];
 
-    for (const keyword of keywords) {
-      const keywordLower = keyword.toLowerCase();
-      if (lowerName.includes(keywordLower)) {
-        console.log(`✅ Match found! "${lowerName}" contains keyword "${keywordLower}" → Routing to: ${banker.name} (${banker.bank_name})`);
+    // Use only the first keyword for matching
+    if (keywords.length > 0) {
+      const keyword = keywords[0].toLowerCase().trim();
+
+      if (lowerName === keyword) {
+        console.log(`✅ Exact match found! "${lowerName}" matches keyword "${keyword}" → Routing to: ${banker.name} (${banker.bank_name})`);
         return banker;
       }
     }
   }
 
-  // Fallback: return first active banker
-  console.warn(`⚠️ No keyword match found for "${bankerNameRequested}"`);
-  console.warn(`⚠️ Using fallback: First active banker → ${bankers[0].name} (${bankers[0].bank_name})`);
-  console.warn(`💡 Tip: Add routing_keywords to banker "${bankerNameRequested}" in database to match this request`);
+  // No match found - return null to indicate error
+  console.error(`❌ No exact keyword match found for "${bankerNameRequested}"`);
+  console.error(`💡 Tip: Add exact routing keyword "${bankerNameRequested}" to a banker in database`);
 
-  return bankers.length > 0 ? bankers[0] : null;
+  return null;
 }
 
 /**
