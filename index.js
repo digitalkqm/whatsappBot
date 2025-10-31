@@ -18,6 +18,8 @@ const ContactAPI = require('./api/contactAPI');
 const BroadcastContactAPI = require('./api/broadcastContactAPI');
 const ValuationAPI = require('./api/valuationAPI');
 const BankerAPI = require('./api/bankerAPI');
+const ImageUploadAPI = require('./api/imageUploadAPI');
+const multer = require('multer');
 
 // Puppeteer stealth configuration to avoid WhatsApp detection
 const puppeteer = require('puppeteer-extra');
@@ -511,6 +513,39 @@ const contactAPI = new ContactAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const broadcastContactAPI = new BroadcastContactAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const valuationAPI = new ValuationAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bankerAPI = new BankerAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Initialize ImageKit API for image uploads
+let imageUploadAPI = null;
+if (process.env.IMAGEKIT_PUBLIC_KEY && process.env.IMAGEKIT_PRIVATE_KEY && process.env.IMAGEKIT_URL_ENDPOINT) {
+  try {
+    imageUploadAPI = new ImageUploadAPI(
+      process.env.IMAGEKIT_PUBLIC_KEY,
+      process.env.IMAGEKIT_PRIVATE_KEY,
+      process.env.IMAGEKIT_URL_ENDPOINT
+    );
+    console.log('✅ ImageKit initialized successfully');
+  } catch (error) {
+    console.error('⚠️  ImageKit initialization failed:', error.message);
+  }
+} else {
+  console.log('⚠️  ImageKit not configured - image upload feature will be unavailable');
+}
+
+// Configure Multer for memory storage (no disk writes)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max file size
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
 
 const log = (level, message, ...args) => {
   const timestamp = new Date().toISOString();
@@ -2027,6 +2062,62 @@ async function sendBroadcastNotification(phoneNumber, summary) {
     log('error', `❌ Error sending notification: ${error.message}`);
   }
 }
+
+// Image upload endpoint for broadcast messages
+app.post('/api/upload/image', upload.single('image'), async (req, res) => {
+  try {
+    // Check if ImageKit is configured
+    if (!imageUploadAPI) {
+      return res.status(503).json({
+        success: false,
+        error: 'Image upload service not configured. Please contact administrator.'
+      });
+    }
+
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No image file provided'
+      });
+    }
+
+    // Upload to ImageKit
+    const result = await imageUploadAPI.uploadImage(
+      req.file.buffer,
+      req.file.originalname,
+      'broadcast-images'
+    );
+
+    if (result.success) {
+      log('info', `✅ Image uploaded: ${result.name} (${result.url})`);
+      return res.json({
+        success: true,
+        url: result.url,
+        fileId: result.fileId,
+        name: result.name,
+        size: result.size,
+        dimensions: {
+          width: result.width,
+          height: result.height
+        }
+      });
+    } else {
+      log('error', `❌ Image upload failed: ${result.error}`);
+      return res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    log('error', `❌ Image upload error: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // Send interest rate broadcast to selected contacts
 app.post('/api/broadcast/interest-rate', async (req, res) => {

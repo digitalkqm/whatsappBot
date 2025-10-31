@@ -9,6 +9,9 @@ const contactsPerPage = 50;
 // WebSocket for real-time broadcast updates
 let broadcastWs = null;
 
+// Track uploaded image URL for broadcast
+let uploadedImageUrl = null;
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
   await loadAllContacts();
@@ -43,6 +46,9 @@ function setupEventListeners() {
   // Pagination
   document.getElementById('prevPage').addEventListener('click', () => changePage(-1));
   document.getElementById('nextPage').addEventListener('click', () => changePage(1));
+
+  // Image upload handling
+  document.getElementById('broadcastImageFile').addEventListener('change', handleImageSelect);
 }
 
 // Load all contacts from database
@@ -771,13 +777,28 @@ async function handleBroadcastSubmit(e) {
   e.preventDefault();
 
   const message = document.getElementById('broadcastMessage').value;
-  const imageUrl = document.getElementById('broadcastImage').value;
   const delayBetween = parseInt(document.getElementById('delayBetween').value) || 7;
   const notificationContact = document.getElementById('notificationContact').value.trim();
+  const imageFile = document.getElementById('broadcastImageFile').files[0];
 
   const contacts = allContacts.filter(c => selectedContacts.has(c.id));
 
   try {
+    let imageUrl = uploadedImageUrl; // Use already uploaded image URL
+
+    // If a new file is selected but not uploaded yet, upload it first
+    if (imageFile && !uploadedImageUrl) {
+      showNotification('Uploading image...', 'info');
+      const uploadResult = await uploadImageToServer(imageFile);
+
+      if (uploadResult.success) {
+        imageUrl = uploadResult.url;
+      } else {
+        showNotification('Image upload failed: ' + uploadResult.error, 'error');
+        return; // Stop broadcast if image upload fails
+      }
+    }
+
     const response = await fetch('/api/broadcast/interest-rate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -811,6 +832,9 @@ async function handleBroadcastSubmit(e) {
       showBroadcastProgress(contacts);
       selectedContacts.clear();
       updateBulkActionsUI();
+
+      // Clear uploaded image for next broadcast
+      uploadedImageUrl = null;
     } else {
       showNotification(result.error || 'Failed to start broadcast', 'error');
     }
@@ -970,6 +994,101 @@ function escapeHtml(text) {
     "'": '&#039;'
   };
   return text.toString().replace(/[&<>"']/g, m => map[m]);
+}
+
+// ===== IMAGE UPLOAD FUNCTIONS =====
+
+// Handle image file selection
+async function handleImageSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Validate file size (5MB max)
+  if (file.size > 5 * 1024 * 1024) {
+    showNotification('Image file is too large. Maximum size is 5MB.', 'error');
+    event.target.value = ''; // Clear the input
+    return;
+  }
+
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    showNotification('Please select a valid image file.', 'error');
+    event.target.value = ''; // Clear the input
+    return;
+  }
+
+  // Show file name
+  document.getElementById('imageFileName').textContent = file.name;
+  document.getElementById('clearImageBtn').style.display = 'inline-block';
+
+  // Show preview
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('previewImg').src = e.target.result;
+    document.getElementById('imagePreview').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+
+  // Auto-upload the image
+  await uploadImageToServer(file);
+}
+
+// Upload image to server
+async function uploadImageToServer(file) {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const uploadProgress = document.getElementById('uploadProgress');
+  const uploadProgressBar = document.getElementById('uploadProgressBar');
+  const uploadStatus = document.getElementById('uploadStatus');
+
+  try {
+    uploadProgress.style.display = 'block';
+    uploadStatus.textContent = 'Uploading...';
+    uploadProgressBar.style.width = '30%';
+
+    const response = await fetch('/api/upload/image', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      uploadedImageUrl = result.url;
+      uploadProgressBar.style.width = '100%';
+      uploadStatus.textContent = 'Upload complete!';
+      uploadStatus.style.color = '#16a34a';
+
+      setTimeout(() => {
+        uploadProgress.style.display = 'none';
+        uploadProgressBar.style.width = '0%';
+        uploadStatus.style.color = '#64748b';
+      }, 2000);
+
+      showNotification('Image uploaded successfully!', 'success');
+      return { success: true, url: result.url };
+    } else {
+      uploadProgress.style.display = 'none';
+      showNotification('Image upload failed: ' + result.error, 'error');
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    uploadProgress.style.display = 'none';
+    console.error('Upload error:', error);
+    showNotification('Image upload failed: ' + error.message, 'error');
+    return { success: false, error: error.message };
+  }
+}
+
+// Clear selected image
+function clearSelectedImage() {
+  document.getElementById('broadcastImageFile').value = '';
+  document.getElementById('imageFileName').textContent = 'No file chosen';
+  document.getElementById('clearImageBtn').style.display = 'none';
+  document.getElementById('imagePreview').style.display = 'none';
+  document.getElementById('previewImg').src = '';
+  uploadedImageUrl = null;
 }
 
 // Add CSS animations
