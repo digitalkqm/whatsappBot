@@ -347,7 +347,6 @@
             <tr>
               <th>Name</th>
               <th>Bank</th>
-              <th>Agent #</th>
               <th>WhatsApp Group</th>
               <th>Keywords</th>
               <th>Total Valuations</th>
@@ -356,7 +355,7 @@
           </thead>
           <tbody id="bankers-tbody">
             <tr>
-              <td colspan="7" class="loading">Loading bankers...</td>
+              <td colspan="6" class="loading">Loading bankers...</td>
             </tr>
           </tbody>
         </table>
@@ -386,11 +385,6 @@
         </div>
 
         <div class="form-group">
-          <label>Agent Number</label>
-          <input type="text" id="banker-agent-number" placeholder="AG001">
-        </div>
-
-        <div class="form-group">
           <label>Bank Name</label>
           <input type="text" id="banker-bank-name" placeholder="Premas, DBS, OCBC, etc.">
         </div>
@@ -410,12 +404,6 @@
           <label>Routing Keywords</label>
           <input type="text" id="banker-keywords" placeholder="yvonne, premas">
           <small>Comma-separated keywords for auto-routing</small>
-        </div>
-
-        <div class="form-group">
-          <label>Priority</label>
-          <input type="number" id="banker-priority" value="0" min="0" max="100">
-          <small>Higher priority = checked first (0-100)</small>
         </div>
 
         <div class="form-group">
@@ -473,7 +461,7 @@
       const tbody = document.getElementById('bankers-tbody');
 
       if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><h3>No bankers found</h3><p>Click "Add Banker" to create one</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><h3>No bankers found</h3><p>Click "Add Banker" to create one</p></td></tr>';
         return;
       }
 
@@ -486,7 +474,6 @@
           <tr>
             <td><strong>${banker.display_name}</strong><br><small>${banker.name}</small></td>
             <td>${banker.bank_name || '-'}</td>
-            <td>${banker.agent_number || '-'}</td>
             <td><code>${banker.whatsapp_group_id.substring(0, 20)}...</code><br><small>${banker.whatsapp_group_name || ''}</small></td>
             <td><div class="keywords">${keywords}</div></td>
             <td>${banker.total_valuations || 0}</td>
@@ -518,12 +505,10 @@
           document.getElementById('banker-id').value = banker.id;
           document.getElementById('banker-name').value = banker.name;
           document.getElementById('banker-display-name').value = banker.display_name;
-          document.getElementById('banker-agent-number').value = banker.agent_number || '';
           document.getElementById('banker-bank-name').value = banker.bank_name || '';
           document.getElementById('banker-group-id').value = banker.whatsapp_group_id;
           document.getElementById('banker-group-name').value = banker.whatsapp_group_name || '';
           document.getElementById('banker-keywords').value = Array.isArray(banker.routing_keywords) ? banker.routing_keywords.join(', ') : '';
-          document.getElementById('banker-priority').value = banker.priority || 0;
           document.getElementById('banker-active').value = banker.is_active.toString();
 
           document.getElementById('form-modal').classList.add('active');
@@ -546,12 +531,10 @@
       const bankerData = {
         name: document.getElementById('banker-name').value,
         display_name: document.getElementById('banker-display-name').value,
-        agent_number: document.getElementById('banker-agent-number').value || null,
         bank_name: document.getElementById('banker-bank-name').value || null,
         whatsapp_group_id: document.getElementById('banker-group-id').value,
         whatsapp_group_name: document.getElementById('banker-group-name').value || null,
         routing_keywords: keywords,
-        priority: parseInt(document.getElementById('banker-priority').value) || 0,
         is_active: document.getElementById('banker-active').value === 'true',
       };
 
@@ -699,7 +682,7 @@
 
     function showError(message) {
       const tbody = document.getElementById('bankers-tbody');
-      tbody.innerHTML = `<tr><td colspan="7" class="loading" style="color: #e74c3c;">${message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="loading" style="color: #e74c3c;">${message}</td></tr>`;
     }
 
     // Initialize
