@@ -89,6 +89,88 @@
         </div>
       </section>
 
+      <!-- Trigger Words Section -->
+      <section class="card" aria-labelledby="triggers-heading">
+        <h2 id="triggers-heading">🎯 Message Triggers</h2>
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-6);">
+          The bot will automatically process messages containing these trigger words or patterns:
+        </p>
+
+        <div class="triggers-grid">
+          <div class="trigger-item">
+            <div class="trigger-icon">📊</div>
+            <div class="trigger-content">
+              <h3>Valuation Request</h3>
+              <div class="trigger-keyword">
+                <code>valuation request:</code>
+              </div>
+              <p class="trigger-description">
+                Messages containing this keyword will trigger the valuation request workflow (Supabase)
+              </p>
+              <div class="trigger-example">
+                <strong>Example:</strong><br>
+                <span>"Valuation Request: Property at 123 Main St"</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="trigger-item">
+            <div class="trigger-icon">📨</div>
+            <div class="trigger-content">
+              <h3>Banker Reply</h3>
+              <div class="trigger-keyword">
+                <code>Reply/Quote to Message</code>
+              </div>
+              <p class="trigger-description">
+                Messages that reply to (quote) another message will trigger the valuation reply workflow
+              </p>
+              <div class="trigger-example">
+                <strong>Example:</strong><br>
+                <span>Any message sent as a reply to a previous message</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="trigger-item">
+            <div class="trigger-icon">💰</div>
+            <div class="trigger-content">
+              <h3>Interest Rate Message</h3>
+              <div class="trigger-keyword">
+                <code>keyquest mortgage team</code>
+              </div>
+              <p class="trigger-description">
+                Messages containing this keyword will trigger the interest rate workflow
+              </p>
+              <div class="trigger-example">
+                <strong>Example:</strong><br>
+                <span>"Update from KeyQuest Mortgage Team: New rates available"</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="trigger-item">
+            <div class="trigger-icon">🏦</div>
+            <div class="trigger-content">
+              <h3>Bank Rates Update</h3>
+              <div class="trigger-keyword">
+                <code>update bank rates</code>
+              </div>
+              <p class="trigger-description">
+                Messages containing this keyword will trigger the bank rates update workflow
+              </p>
+              <div class="trigger-example">
+                <strong>Example:</strong><br>
+                <span>"Update Bank Rates for Q4 2024"</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="trigger-note">
+          <strong>📌 Note:</strong> All trigger keywords are case-insensitive. The bot only processes messages from WhatsApp groups (not individual chats).
+        </div>
+      </section>
+
       <!-- Workflows Section -->
       <section class="card" aria-labelledby="workflows-heading">
         <h2 id="workflows-heading">⚙️ Active Workflows</h2>

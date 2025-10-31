@@ -580,6 +580,159 @@ nav {
 }
 
 /* ==============================================
+   Trigger Words Section
+   ============================================== */
+
+.triggers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-5);
+}
+
+.trigger-item {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--gradient-card);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--gray-200);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.trigger-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--gradient-primary);
+  transition: width var(--transition-base);
+}
+
+.trigger-item:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary);
+}
+
+.trigger-item:hover::before {
+  width: 8px;
+}
+
+.trigger-icon {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.trigger-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.trigger-content h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.trigger-keyword {
+  display: inline-flex;
+  align-items: center;
+}
+
+.trigger-keyword code {
+  background: linear-gradient(135deg, var(--primary-light) 0%, #d1fae5 100%);
+  color: var(--primary);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: 1px solid var(--primary);
+  letter-spacing: 0.02em;
+  box-shadow: var(--shadow-sm);
+}
+
+.trigger-description {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.trigger-example {
+  background: var(--gray-50);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--info);
+  font-size: 0.875rem;
+}
+
+.trigger-example strong {
+  color: var(--gray-800);
+  display: block;
+  margin-bottom: var(--space-2);
+  font-weight: 700;
+}
+
+.trigger-example span {
+  color: var(--gray-600);
+  font-style: italic;
+  display: block;
+  padding-left: var(--space-2);
+}
+
+.trigger-note {
+  margin-top: var(--space-6);
+  padding: var(--space-5);
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: var(--radius-lg);
+  border-left: 4px solid var(--warning);
+  color: var(--gray-800);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  box-shadow: var(--shadow-sm);
+}
+
+.trigger-note strong {
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+/* Responsive adjustments for triggers */
+@media (max-width: 1024px) {
+  .triggers-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .triggers-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trigger-item {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .trigger-icon {
+    font-size: 3rem;
+  }
+}
+
+/* ==============================================
    Workflows Section
    ============================================== */
 

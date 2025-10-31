@@ -441,27 +441,29 @@ class HumanBehaviorManager {
   // Process workflows
   async sendWebhooks(payload) {
     try {
+      const groupInfo = payload.groupId ? ` [Group: ${payload.groupId}]` : '';
+
       if (payload.messageType === 'valuation_request') {
-        log('info', '📊 Executing valuation request workflow (Supabase)');
+        log('info', `📊 Executing valuation request workflow (Supabase)${groupInfo}`);
         await valuationRequestWorkflow(payload, workflowEngine);
       }
 
       if (payload.messageType === 'valuation_reply') {
-        log('info', '📨 Executing valuation reply workflow (Supabase)');
+        log('info', `📨 Executing valuation reply workflow (Supabase)${groupInfo}`);
         await valuationReplyWorkflow(payload, workflowEngine);
       }
 
       if (payload.messageType === 'valuation') {
-        log('info', '📊 Executing old valuation workflow');
+        log('info', `📊 Executing old valuation workflow${groupInfo}`);
         await workflowEngine.executeWorkflow('valuation', payload);
       }
 
       if (payload.messageType === 'interest_rate' || payload.messageType === 'bank_rates_update') {
-        log('info', '💰 Executing interest rate workflow');
+        log('info', `💰 Executing interest rate workflow${groupInfo}`);
         await workflowEngine.executeWorkflow('interest_rate', payload);
       }
     } catch (error) {
-      log('error', `Workflow execution failed: ${error.message}`);
+      log('error', `Workflow execution failed: ${error.message}${payload.groupId ? ` [Group: ${payload.groupId}]` : ''}`);
       throw error;
     }
   }
@@ -1244,9 +1246,12 @@ async function handleIncomingMessage(msg) {
   const text = msg.body || '';
   const messageId = msg?.id?.id || msg?.id?._serialized || '';
 
+  // Log incoming message with group ID
+  log('info', `📨 Message received from group: ${groupId}`);
+
   // Skip if message was already processed
   if (humanBehavior.wasMessageProcessed(messageId)) {
-    log('debug', '🔄 Message already processed, skipping');
+    log('debug', `🔄 Message already processed, skipping [Group: ${groupId}]`);
     return;
   }
 
@@ -1277,25 +1282,25 @@ async function handleIncomingMessage(msg) {
 
   // Skip if message doesn't match any trigger conditions
   if (!isValuationRequest && !isValuationReply && !isInterestRateMessage && !isBankRatesUpdateMessage) {
-    log('info', '🚫 Ignored message - no trigger keywords found.');
+    log('info', `🚫 Ignored message - no trigger keywords found [Group: ${groupId}]`);
     return;
   }
 
   // Log what triggered the message processing
   if (isValuationRequest) {
-    log('info', '📊 Valuation request detected (template format)');
+    log('info', `📊 Valuation request detected (template format) [Group: ${groupId}]`);
   }
 
   if (isValuationReply) {
-    log('info', '📨 Banker reply detected (quoted message)');
+    log('info', `📨 Banker reply detected (quoted message) [Group: ${groupId}]`);
   }
 
   if (isInterestRateMessage) {
-    log('info', '💰 Interest rate message detected');
+    log('info', `💰 Interest rate message detected [Group: ${groupId}]`);
   }
 
   if (isBankRatesUpdateMessage) {
-    log('info', '🏦 Bank rates update message detected');
+    log('info', `🏦 Bank rates update message detected [Group: ${groupId}]`);
   }
 
   // Memory logging every 50 messages
@@ -1336,7 +1341,7 @@ async function handleIncomingMessage(msg) {
 
   // Add message to human behavior queue instead of processing immediately
   humanBehavior.addToQueue({ msg, payload });
-  log('info', '📝 Message added to processing queue with human-like timing');
+  log('info', `📝 Message added to processing queue with human-like timing [Group: ${groupId}] [Type: ${messageType}]`);
 }
 
 async function startClient() {
