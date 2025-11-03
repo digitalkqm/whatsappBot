@@ -7,7 +7,7 @@ A self-contained WhatsApp automation bot with a web-based dashboard for QR code 
 ### ✅ What's New
 - **Web Dashboard** - Scan QR codes directly in your browser
 - **Real-time Updates** - WebSocket-powered live status
-- **Native Workflows** - Google Sheets integration without n8n
+- **Native Workflows** - All workflows run natively in Node.js without n8n
 - **Self-Contained** - Single service deployment
 - **Session Management** - Persistent authentication via Supabase
 
@@ -22,8 +22,6 @@ A self-contained WhatsApp automation bot with a web-based dashboard for QR code 
 
 1. **Node.js** >= 18.0.0
 2. **Supabase Account** (free tier works)
-3. **Google Cloud Project** with Sheets API enabled
-4. **Google Service Account** credentials
 
 ## 🚀 Setup Instructions
 
@@ -55,34 +53,7 @@ CREATE TABLE workflow_state (
 );
 ```
 
-### 3. Setup Google Sheets
-
-#### Create Service Account
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable **Google Sheets API**
-4. Create **Service Account** credentials
-5. Download JSON key file
-
-#### Share Spreadsheets
-1. Create your Google Sheets for:
-   - Interest Rate contacts
-   - Valuation requests
-2. Share each sheet with service account email (found in JSON)
-3. Grant **Editor** access
-
-#### Spreadsheet Structure
-
-**Interest Rate Sheet (Clients tab):**
-| Name | Contact | Updates | Content | imgURL |
-|------|---------|---------|---------|--------|
-| John | 6512345678 | lastIndex | (auto) | (optional) |
-
-**Valuation Sheet:**
-| Timestamp | Group ID | Sender ID | Message ID | Address | Property Type | Bedrooms | Floor Area | Asking Price | Raw Message | Reply Message |
-|-----------|----------|-----------|------------|---------|---------------|----------|------------|--------------|-------------|---------------|
-
-### 4. Environment Configuration
+### 3. Environment Configuration
 
 Copy `.env.example` to `.env` and fill in:
 
@@ -94,13 +65,9 @@ Required variables:
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_anon_key_here
-
-GOOGLE_SHEETS_CREDENTIALS='{"type":"service_account",...}'
-INTEREST_RATE_SPREADSHEET_ID=your_spreadsheet_id
-VALUATION_SPREADSHEET_ID=your_spreadsheet_id
 ```
 
-### 5. Start the Bot
+### 4. Start the Bot
 
 ```bash
 npm start
@@ -139,38 +106,47 @@ Access dashboard at: **http://localhost:3000**
 
 ## 🔄 Workflows
 
-### Interest Rate Workflow
-**Trigger:** WhatsApp message containing "keyquest mortgage team"
+### Valuation Request Workflow
+**Trigger:** Valuation request messages from WhatsApp groups
 
 **Process:**
-1. Reads message content from WhatsApp
-2. Updates Google Sheet with message text
-3. Processes contacts in batches of 10
-4. Sends personalized messages with delays
-5. Updates progress after each batch
-6. Waits 10 minutes between batches
+1. Parses valuation request details
+2. Routes to appropriate banker via keyword matching
+3. Saves request to Supabase database
+4. Forwards request to banker's WhatsApp group
+5. Sends acknowledgment to requester
 
-**Spreadsheet Requirements:**
-- Column E2: Last processed index
-- Column F2: Message content
-- Column H2: Image URL (optional)
-- Columns A-B: Name and Contact list
+**Features:**
+- Automatic banker routing based on keywords
+- Database persistence with forward tracking
+- Real-time notifications
 
-### Valuation Workflow
-**Trigger:** WhatsApp message containing "valuation request" or reply to valuation request
+### Valuation Reply Workflow
+**Trigger:** Banker replies to forwarded valuation requests
 
 **Process:**
-1. Extracts property details from message
-2. Saves to Google Sheet
-3. Sends acknowledgment message
-4. Logs for team review
+1. Identifies original valuation request via quoted message
+2. Updates database with banker's response
+3. Forwards reply to requester group
+4. Notifies agent contact (if configured)
 
-**Data Extracted:**
-- Address/Location
-- Property Type (HDB/Condo/Landed)
-- Bedrooms
-- Floor Area
-- Asking Price (if mentioned)
+**Features:**
+- Clarification question detection
+- Multi-party notification system
+- Message thread tracking
+
+### Rate Update Workflows
+**Triggers:** Bank rate updates and rate package updates
+
+**Process:**
+1. Detects rate update messages
+2. Forwards to n8n webhook for processing
+3. Sends group notifications with progress updates
+
+**Features:**
+- Webhook integration for external processing
+- Real-time status updates
+- Error handling and notifications
 
 ## 🔧 Configuration
 
@@ -191,32 +167,45 @@ const HUMAN_CONFIG = {
 ### Workflow Customization
 
 Edit workflow files:
-- `workflows/interestRate.js` - Contact broadcasting logic
-- `workflows/valuation.js` - Valuation processing
+- `workflows/valuationRequestSupabase.js` - Valuation request processing
+- `workflows/valuationReplySupabase.js` - Valuation reply handling
+- `workflows/ratePackageUpdate.js` - Rate package updates
+- `workflows/bankRatesUpdate.js` - Bank rates updates
 - `workflows/engine.js` - Core workflow engine
 
 ## 🏗️ Architecture
 
 ```
-├── index.js                 # Main bot server
+├── index.js                          # Main bot server
 ├── workflows/
-│   ├── engine.js           # Workflow execution engine
-│   ├── interestRate.js     # Interest rate workflow
-│   └── valuation.js        # Valuation workflow
-├── public/
-│   ├── index.html          # Dashboard UI
-│   ├── styles.css          # Dashboard styling
-│   └── app.js              # Frontend JavaScript
-└── json/                   # Legacy n8n workflow exports
+│   ├── engine.js                    # Workflow execution engine
+│   ├── valuationRequestSupabase.js  # Valuation request workflow
+│   ├── valuationReplySupabase.js    # Valuation reply workflow
+│   ├── ratePackageUpdate.js         # Rate package workflow
+│   └── bankRatesUpdate.js           # Bank rates workflow
+├── api/
+│   ├── bankerAPI.js                 # Banker management
+│   ├── broadcastContactAPI.js       # Broadcast contacts
+│   ├── contactAPI.js                # Contact management
+│   ├── imageUploadAPI.js            # Image uploads (ImageKit)
+│   ├── templateAPI.js               # Message templates
+│   ├── valuationAPI.js              # Valuation queries
+│   └── workflowAPI.js               # Workflow management
+├── utils/
+│   └── messageSendQueue.js          # Priority message queue
+└── public/
+    ├── index.html                   # Dashboard UI
+    ├── contacts.html                # Broadcast manager
+    └── *.js, *.css                  # Frontend assets
 ```
 
 ## 🔐 Security Notes
 
 1. **Never commit `.env` file** - Contains sensitive credentials
-2. **Rotate service account keys** regularly
-3. **Limit Google Sheets access** to service account only
-4. **Use HTTPS** in production deployment
-5. **Restrict dashboard access** with authentication (not included)
+2. **Rotate Supabase keys** regularly
+3. **Use HTTPS** in production deployment
+4. **Restrict dashboard access** with authentication (not included)
+5. **Update dependencies** regularly for security patches
 
 ## 🚀 Deployment
 
@@ -242,9 +231,9 @@ Similar process - ensure all environment variables are set.
 - Clear Supabase session: `DELETE FROM whatsapp_sessions WHERE session_key = 'default_session'`
 
 ### Workflows Not Running
-- Verify `GOOGLE_SHEETS_CREDENTIALS` is valid JSON
-- Check spreadsheet IDs are correct
-- Ensure service account has **Editor** access to sheets
+- Check Supabase connection and credentials
+- Verify workflow triggers are configured correctly
+- Review console logs for error messages
 
 ### Session Lost After Restart
 - Check Supabase connection
@@ -278,7 +267,7 @@ curl http://localhost:3000/workflows
 
 - **Documentation Issues:** Open GitHub issue
 - **WhatsApp.js Questions:** See [whatsapp-web.js docs](https://wwebjs.dev/)
-- **Google Sheets API:** [Google API Docs](https://developers.google.com/sheets/api)
+- **Supabase Help:** [Supabase Documentation](https://supabase.com/docs)
 
 ## 📝 License
 
@@ -288,6 +277,7 @@ MIT License - Use freely, no warranties provided.
 
 Built with:
 - [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js)
-- [googleapis](https://github.com/googleapis/google-api-nodejs-client)
-- [express](https://expressjs.com/)
+- [Supabase](https://supabase.com/)
+- [Express](https://expressjs.com/)
 - [ws](https://github.com/websockets/ws)
+- [ImageKit](https://imagekit.io/)

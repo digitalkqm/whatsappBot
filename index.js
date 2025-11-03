@@ -7,7 +7,6 @@ const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 const WebSocket = require('ws');
 const WorkflowEngine = require('./workflows/engine');
-const valuationWorkflow = require('./workflows/valuation');
 const { valuationRequestWorkflow } = require('./workflows/valuationRequestSupabase');
 const { valuationReplyWorkflow } = require('./workflows/valuationReplySupabase');
 const ratePackageUpdateWorkflow = require('./workflows/ratePackageUpdate');
@@ -423,9 +422,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const workflowEngine = new WorkflowEngine(SUPABASE_URL, SUPABASE_ANON_KEY);
 workflowEngine.registerWorkflow('rate_package_update', ratePackageUpdateWorkflow); // n8n webhook for rate packages
 workflowEngine.registerWorkflow('bank_rates_update', bankRatesUpdateWorkflow); // n8n webhook for bank rates
-workflowEngine.registerWorkflow('valuation', valuationWorkflow); // Old workflow
-workflowEngine.registerWorkflow('valuation_request', valuationRequestWorkflow); // New Supabase workflow
-workflowEngine.registerWorkflow('valuation_reply', valuationReplyWorkflow); // New Supabase reply workflow
+workflowEngine.registerWorkflow('valuation_request', valuationRequestWorkflow); // Supabase workflow
+workflowEngine.registerWorkflow('valuation_reply', valuationReplyWorkflow); // Supabase reply workflow
 
 // Initialize API handlers
 const workflowAPI = new WorkflowAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -1861,12 +1859,6 @@ app.post('/api/contacts/import/csv', async (req, res) => {
   const { csv_data, list_name, mapping } = req.body;
   const result = await contactAPI.importFromCSV(csv_data, list_name, mapping);
   res.status(result.success ? 201 : 400).json(result);
-});
-
-app.post('/api/contacts/sync/google-sheets', async (req, res) => {
-  const { list_id, spreadsheet_id, sheet_name, range } = req.body;
-  const result = await contactAPI.syncFromGoogleSheets(list_id, spreadsheet_id, sheet_name, range);
-  res.status(result.success ? 200 : 400).json(result);
 });
 
 app.get('/api/contacts/groups/whatsapp', async (req, res) => {

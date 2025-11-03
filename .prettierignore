@@ -1,0 +1,8 @@
+node_modules/
+.wwebjs_auth/
+.wwebjs_cache/
+.wwebjs_chrome_profile/
+claudedocs/
+database/migrations/
+package-lock.json
+*.log

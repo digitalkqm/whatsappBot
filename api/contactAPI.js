@@ -1,5 +1,4 @@
 const { createClient } = require('@supabase/supabase-js');
-const { google } = require('googleapis');
 
 class ContactAPI {
   constructor(supabaseUrl, supabaseKey) {
@@ -283,61 +282,6 @@ class ContactAPI {
 
     } catch (error) {
       console.error('❌ Error importing from CSV:', error.message);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Sync contacts from Google Sheets
-  async syncFromGoogleSheets(listId, spreadsheetId, sheetName = 'Clients', range = 'A2:D1000') {
-    try {
-      // Initialize Google Sheets API
-      const auth = new google.auth.GoogleAuth({
-        credentials: JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS || '{}'),
-        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-      });
-
-      const sheets = google.sheets({ version: 'v4', auth });
-
-      // Fetch data from sheet
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: `${sheetName}!${range}`
-      });
-
-      const rows = response.data.values || [];
-
-      // Convert to contacts (assuming columns: Name, Phone, Email, Custom)
-      const contacts = rows
-        .filter(row => row[1]) // Must have phone number
-        .map(row => ({
-          name: row[0] || '',
-          phone: this.normalizePhone(row[1] || ''),
-          email: row[2] || '',
-          custom_fields: {
-            additional_info: row[3] || ''
-          }
-        }));
-
-      // Update or create contact list
-      if (listId) {
-        return await this.updateContactList(listId, {
-          contacts,
-          source: 'google_sheets',
-          source_config: { spreadsheetId, sheetName, range }
-        });
-      } else {
-        return await this.createContactList({
-          name: `Google Sheets Import - ${sheetName}`,
-          description: `Synced from Google Sheets: ${spreadsheetId}`,
-          contacts,
-          source: 'google_sheets',
-          source_config: { spreadsheetId, sheetName, range },
-          tags: ['google_sheets', 'synced']
-        });
-      }
-
-    } catch (error) {
-      console.error('❌ Error syncing from Google Sheets:', error.message);
       return { success: false, error: error.message };
     }
   }

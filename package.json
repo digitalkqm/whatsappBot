@@ -10,7 +10,6 @@
     "@supabase/supabase-js": "^2.49.4",
     "axios": "^1.8.4",
     "express": "^5.1.0",
-    "googleapis": "^161.0.0",
     "imagekit": "^6.0.0",
     "multer": "^2.0.2",
     "p-queue": "^7.3.4",
