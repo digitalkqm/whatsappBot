@@ -2603,12 +2603,40 @@ app.get('/ping', (_, res) => {
   res.status(200).send('pong');
 });
 
+// Check for whatsapp-web.js updates (non-blocking)
+async function checkWhatsAppUpdates(currentVersion) {
+  try {
+    const response = await axios.get('https://registry.npmjs.org/whatsapp-web.js/latest', {
+      timeout: 5000
+    });
+    const latestVersion = response.data.version;
+
+    if (latestVersion !== currentVersion) {
+      log('warn', `⚠️ WhatsApp Web.js update available: ${currentVersion} → ${latestVersion}`);
+      log('warn', `   Run: npm run check-updates or npm run update-safe`);
+    } else {
+      log('info', `✅ WhatsApp Web.js is up to date (${currentVersion})`);
+    }
+  } catch (error) {
+    // Silent fail - update check is not critical
+    log('debug', `Could not check for whatsapp-web.js updates: ${error.message}`);
+  }
+}
+
 // Start server
 const server = app.listen(PORT, () => {
+  // Get whatsapp-web.js version from package.json
+  const packageJson = require('./package.json');
+  const whatsappVersion = packageJson.dependencies['whatsapp-web.js']?.replace('^', '') || 'unknown';
+
   log('info', `🚀 Server started on http://localhost:${PORT}`);
   log('info', `📱 Dashboard: http://localhost:${PORT}`);
   log('info', `🤖 Bot Version: ${BOT_VERSION}`);
+  log('info', `📦 WhatsApp Web.js Version: ${whatsappVersion}`);
   log('info', `🧠 Human behavior enabled with smart timing and rate limiting`);
+
+  // Check for updates in background (non-blocking)
+  checkWhatsAppUpdates(whatsappVersion);
 
   // In production: delay 10 seconds to let health checks pass first
   // In development: random delay for human-like behavior
