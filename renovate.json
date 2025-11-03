@@ -1,0 +1,71 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base"
+  ],
+  "timezone": "Asia/Singapore",
+  "schedule": [
+    "before 10am on monday"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "prConcurrentLimit": 3,
+  "prCreation": "immediate",
+  "automerge": false,
+  "ignoreTests": false,
+  "packageRules": [
+    {
+      "description": "WhatsApp Web.js - Manual review REQUIRED",
+      "matchPackagePatterns": ["whatsapp-web.js"],
+      "automerge": false,
+      "major": {
+        "enabled": false
+      },
+      "minor": {
+        "enabled": true
+      },
+      "patch": {
+        "enabled": true
+      },
+      "labels": ["whatsapp-update", "requires-testing"],
+      "reviewers": ["your-github-username"],
+      "prPriority": 10,
+      "stabilityDays": 7,
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "Puppeteer - Related to WhatsApp, needs testing",
+      "matchPackagePatterns": ["puppeteer"],
+      "automerge": false,
+      "labels": ["browser-automation", "requires-testing"],
+      "stabilityDays": 5
+    },
+    {
+      "description": "Security patches - Auto-merge after CI passes",
+      "matchUpdateTypes": ["patch"],
+      "matchPackagePatterns": ["*"],
+      "excludePackagePatterns": ["whatsapp-web.js", "puppeteer"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Development dependencies - Low risk",
+      "matchDepTypes": ["devDependencies"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Disable major updates for all packages",
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "enabled": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 3am on monday"]
+  }
+}

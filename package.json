@@ -4,7 +4,17 @@
   "description": "A 24/7 WhatsApp bot using whatsapp-web.js",
   "main": "index.js",
   "scripts": {
-    "start": "node --expose-gc index.js"
+    "start": "node --expose-gc index.js",
+    "dev": "node --expose-gc index.js",
+    "check-updates": "npm outdated",
+    "check-whatsapp": "npm view whatsapp-web.js version && npm list whatsapp-web.js --depth=0",
+    "audit": "npm audit --production",
+    "audit-fix": "npm audit fix",
+    "update-safe": "node -e \"console.log('Run: .\\\\scripts\\\\safe-update-whatsapp.ps1 (Windows) or bash scripts/safe-update-whatsapp.sh (Linux/Mac)')\"",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

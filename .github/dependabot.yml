@@ -1,0 +1,71 @@
+# Dependabot configuration for automated dependency updates
+version: 2
+updates:
+  # Monitor npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Singapore"
+
+    # Limit PRs to avoid spam
+    open-pull-requests-limit: 5
+
+    # Group updates by type
+    groups:
+      # Critical: whatsapp-web.js - needs manual review
+      whatsapp:
+        patterns:
+          - "whatsapp-web.js"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Low risk: patch updates for other deps
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "patch"
+
+      # Development dependencies
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Custom labels for PRs
+    labels:
+      - "dependencies"
+      - "automated"
+
+    # Ignore specific versions if known to break
+    ignore:
+      # Example: ignore problematic versions
+      # - dependency-name: "whatsapp-web.js"
+      #   versions: ["1.25.0", "1.26.0"]
+
+      # Don't auto-update major versions
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+    # Commit message prefix
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+
+    # Review required before merge
+    reviewers:
+      - "your-github-username"
+
+    # Auto-rebase PRs
+    rebase-strategy: "auto"
+
+  # Optional: Monitor GitHub Actions
+  # - package-ecosystem: "github-actions"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
