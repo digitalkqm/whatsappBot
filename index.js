@@ -57,10 +57,6 @@ const HUMAN_CONFIG = {
   ACTIVE_HOURS_VARIATION: 1,   // ±1 hour random variation daily
   SLEEP_MODE_DELAY_MULTIPLIER: 5, // Multiply delays during sleep hours
 
-  // Session behavior (CRITICAL FIXES)
-  SESSION_BREAK_INTERVAL: 8 * 60 * 60 * 1000, // 8 hours (was 1 year)
-  SESSION_BREAK_DURATION: 2 * 60 * 1000, // 2 minutes (was 1 second)
-
   // Message patterns
   IGNORE_PROBABILITY: 0,       // Message ignoring disabled per user request
   DOUBLE_CHECK_PROBABILITY: 0.1, // 10% chance to re-read a message
@@ -83,9 +79,6 @@ class HumanBehaviorManager {
     this.lastAction = 0;
     this.lastHourReset = Date.now();
     this.lastDayReset = Date.now();
-    this.isOnBreak = false;
-    this.breakStartTime = 0;
-    this.lastBreakTime = Date.now();
     this.processedMessages = new Set(); // Track processed message IDs
     this.messageQueue = []; // Queue for processing messages
     this.isProcessingQueue = false;
@@ -148,40 +141,9 @@ class HumanBehaviorManager {
     }
   }
 
-  // Check if we should take a break
-  shouldTakeBreak() {
-    const timeSinceLastBreak = Date.now() - this.lastBreakTime;
-    return timeSinceLastBreak > HUMAN_CONFIG.SESSION_BREAK_INTERVAL && this.isActiveHours();
-  }
-
-  // Start a session break
-  async startBreak() {
-    if (this.isOnBreak) return;
-    
-    this.isOnBreak = true;
-    this.breakStartTime = Date.now();
-    log('info', '😴 Starting human-like session break...');
-    
-    setTimeout(() => {
-      this.endBreak();
-    }, HUMAN_CONFIG.SESSION_BREAK_DURATION);
-  }
-
-  // End a session break
-  endBreak() {
-    this.isOnBreak = false;
-    this.lastBreakTime = Date.now();
-    log('info', '😊 Session break ended, resuming activity...');
-  }
-
   // Check if we can process more messages (rate limiting)
   canProcessMessage(groupId = null) {
     this.resetCountersIfNeeded();
-
-    if (this.isOnBreak) {
-      log('info', '😴 Currently on break, skipping message processing');
-      return false;
-    }
 
     if (this.messageCount.hourly >= HUMAN_CONFIG.MAX_MESSAGES_PER_HOUR) {
       log('warn', '⏱️ Hourly message limit reached, skipping message');
@@ -336,12 +298,6 @@ class HumanBehaviorManager {
   async processMessageWithHumanBehavior(messageData) {
     const { msg, payload } = messageData;
 
-    // Check if we should take a break
-    if (this.shouldTakeBreak()) {
-      await this.startBreak();
-      return;
-    }
-
     // Random chance to ignore message (simulate human oversight) - DISABLED per user request
     if (Math.random() < HUMAN_CONFIG.IGNORE_PROBABILITY) {
       log('info', '🤷 Randomly ignoring message (simulating human oversight)');
@@ -444,7 +400,6 @@ class HumanBehaviorManager {
   // Get status for health endpoint
   getStatus() {
     return {
-      isOnBreak: this.isOnBreak,
       messageCount: this.messageCount,
       queueLength: this.messageQueue.length,
       isProcessingQueue: this.isProcessingQueue,
@@ -1746,20 +1701,6 @@ app.post('/save-session', async (req, res) => {
 });
 
 // Human behavior control endpoints
-app.post('/toggle-break', async (req, res) => {
-  try {
-    if (humanBehavior.isOnBreak) {
-      humanBehavior.endBreak();
-      res.status(200).json({ success: true, message: 'Break ended' });
-    } else {
-      await humanBehavior.startBreak();
-      res.status(200).json({ success: true, message: 'Break started' });
-    }
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 app.get('/human-status', (req, res) => {
   res.status(200).json({
     success: true,
@@ -2735,8 +2676,8 @@ const runWatchdog = async () => {
     log('info', `✅ Watchdog: client state is "${state}".`);
 
     if (state === 'CONNECTED') {
-      // Only save session periodically when not on break and during active hours
-      if (!humanBehavior.isOnBreak && humanBehavior.isActiveHours()) {
+      // Only save session periodically during active hours
+      if (humanBehavior.isActiveHours()) {
         try {
           await safelyTriggerSessionSave(client);
           log('info', '💾 Periodic session save completed');
@@ -2744,7 +2685,7 @@ const runWatchdog = async () => {
           log('warn', `Periodic session save failed: ${saveErr.message}`);
         }
       } else {
-        log('debug', '💤 Skipping session save (break time or inactive hours)');
+        log('debug', '💤 Skipping session save (inactive hours)');
       }
     } else {
       log('warn', `⚠️ Watchdog detected bad state "${state}". Restarting client...`);
