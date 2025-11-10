@@ -17,7 +17,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.4",
+    "@supabase/supabase-js": "^2.80.0",
     "axios": "^1.8.4",
     "express": "^5.1.0",
     "imagekit": "^6.0.0",
