@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
-    "axios": "^1.8.4",
+    "axios": "^1.13.2",
     "express": "^5.1.0",
     "imagekit": "^6.0.0",
     "multer": "^2.0.2",
