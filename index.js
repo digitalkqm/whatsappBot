@@ -1009,6 +1009,7 @@ function createWhatsAppClient() {
       }),
       puppeteer: {
         headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
         args: [
           // ========================================
           // CRITICAL ANTI-DETECTION FLAGS

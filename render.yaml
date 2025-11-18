@@ -11,6 +11,8 @@ services:
         value: production
       - key: NODE_OPTIONS
         value: --max-old-space-size=256 --expose-gc
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/.cache/puppeteer
       - key: PUPPETEER_ARGS
         value: --no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu
     autoDeploy: true
