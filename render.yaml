@@ -9,6 +9,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=256 --expose-gc
       - key: PUPPETEER_ARGS
         value: --no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu
     autoDeploy: true

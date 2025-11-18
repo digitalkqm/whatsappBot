@@ -1024,47 +1024,56 @@ function createWhatsAppClient() {
           // Custom user agent (looks like real Chrome, not Puppeteer)
           '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
 
-          // Standard viewport size (1920x1080 = common desktop resolution)
-          '--window-size=1920,1080',
+          // Reduced viewport size for memory optimization (was 1920x1080)
+          '--window-size=1280,720',
 
           // ========================================
-          // STABILITY & PERFORMANCE FLAGS (SAFE)
+          // MEMORY OPTIMIZATION FLAGS (CRITICAL FOR 512MB LIMIT)
           // ========================================
           '--disable-dev-shm-usage',           // Prevents /dev/shm issues in Docker/low-memory
           '--disable-accelerated-2d-canvas',   // Reduces GPU usage
           '--disable-gpu',                     // Server environments don't need GPU
+          '--no-sandbox',                      // Required for Render.com deployment
+          '--disable-setuid-sandbox',          // Required for Render.com deployment
 
-          // Increased memory limit (was 256MB - too low, caused crashes)
-          '--js-flags=--max-old-space-size=512',
+          // Aggressive memory limits for 512MB Render free tier
+          '--js-flags=--max-old-space-size=256',  // Reduced from 512MB to 256MB
+          '--disable-software-rasterizer',
+          '--disable-canvas-aa',
+          '--disable-3d-apis',
+          '--disable-webgl',
+          '--disable-webgl2',
 
-          // ========================================
-          // NATURAL BROWSER BEHAVIOR FLAGS
-          // ========================================
-          // Prevent background throttling (keeps connection alive)
+          // Reduce memory usage
+          '--memory-pressure-off',
+          '--renderer-process-limit=1',
+          '--max-gum-fps=15',
+
+          // Disable unnecessary features to save memory
+          '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
+          '--disable-features=TranslateUI,BlinkGenPropertyTrees',
+          '--disable-background-networking',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-
-          // Disable features that real users typically disable
-          '--disable-features=TranslateUI',
-
-          // Network optimizations
+          '--disable-breakpad',
+          '--disable-client-side-phishing-detection',
+          '--disable-component-extensions-with-background-pages',
+          '--disable-default-apps',
+          '--disable-hang-monitor',
           '--disable-ipc-flooding-protection',
+          '--disable-popup-blocking',
+          '--disable-prompt-on-repost',
+          '--disable-renderer-backgrounding',
+          '--disable-sync',
           '--enable-features=NetworkService,NetworkServiceInProcess',
+          '--force-color-profile=srgb',
+          '--metrics-recording-only',
+          '--mute-audio',
+          '--no-first-run',
 
           // Language & locale (natural for English users)
           '--lang=en-US',
           '--accept-lang=en-US,en;q=0.9',
-
-          // ========================================
-          // REMOVED DANGEROUS FLAGS (DO NOT ADD BACK)
-          // ========================================
-          // ❌ '--no-sandbox' - Strong bot signal, only use in Docker if absolutely required
-          // ❌ '--disable-setuid-sandbox' - Bot signal
-          // ❌ '--single-process' - CRITICAL: Causes crashes AND triggers detection
-          // ❌ '--no-first-run' - Unnatural flag
-          // ❌ '--no-zygote' - Related to single-process issues
-          // ❌ '--disable-extensions' - Real browsers have extensions
         ],
         timeout: 120000,
 

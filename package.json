@@ -4,7 +4,7 @@
   "description": "A 24/7 WhatsApp bot using whatsapp-web.js",
   "main": "index.js",
   "scripts": {
-    "start": "node --expose-gc index.js",
+    "start": "node --expose-gc --max-old-space-size=256 index.js",
     "dev": "node --expose-gc index.js",
     "check-updates": "npm outdated",
     "check-whatsapp": "npm view whatsapp-web.js version && npm list whatsapp-web.js --depth=0",
