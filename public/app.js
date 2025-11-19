@@ -134,23 +134,11 @@ function handleWebSocketMessage(data) {
   }
 }
 
-// Update connection status badge
+// Update connection status badge (deprecated - status badge removed from UI)
 function updateConnectionStatus(status) {
-  const badge = document.getElementById('connectionStatus');
-  const statusText = badge.querySelector('.status-text');
-
-  badge.className = 'status-badge';
-
-  if (status === 'connected') {
-    badge.classList.add('connected');
-    statusText.textContent = 'Connected';
-  } else if (status === 'disconnected') {
-    badge.classList.add('disconnected');
-    statusText.textContent = 'Disconnected';
-  } else if (status === 'error') {
-    badge.classList.add('disconnected');
-    statusText.textContent = 'Error';
-  }
+  // Function kept for backward compatibility but does nothing
+  // Status badge was removed as it was confusing (showed WebSocket connection, not WhatsApp auth)
+  console.log('WebSocket status:', status);
 }
 
 // Setup button event listeners
