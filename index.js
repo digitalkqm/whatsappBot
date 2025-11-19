@@ -1754,7 +1754,8 @@ app.post('/logout', async (req, res) => {
     try {
       log('info', '3️⃣ Deleting session from Supabase...');
       const sessionKey = `RemoteAuth-${SESSION_ID}`;
-      await supabaseStore.delete({ session: SESSION_ID });
+      // Pass the full RemoteAuth-prefixed key to delete the correct session
+      await supabaseStore.delete({ session: sessionKey });
       cleanupResults.supabaseSessionDelete = true;
       log('info', `✅ Session deleted: ${sessionKey}`);
     } catch (supabaseErr) {
@@ -1861,6 +1862,17 @@ app.post('/logout', async (req, res) => {
     const totalSteps = Object.keys(cleanupResults).length;
 
     log('info', `🎉 Logout complete: ${successCount}/${totalSteps} cleanup steps successful`);
+
+    // Step 11: Wait a moment for cleanup to settle, then restart client for new QR code
+    setTimeout(async () => {
+      try {
+        log('info', '🔄 Restarting client to generate new QR code...');
+        await startClient();
+        log('info', '✅ Client restarted - new QR code should be available');
+      } catch (restartErr) {
+        log('error', `❌ Failed to restart client after logout: ${restartErr.message}`);
+      }
+    }, 2000); // 2 second delay to ensure cleanup completes
 
     res.status(200).json({
       success: true,
