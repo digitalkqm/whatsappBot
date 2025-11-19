@@ -1708,6 +1708,178 @@ app.post('/save-session', async (req, res) => {
   }
 });
 
+// Production-ready logout endpoint with comprehensive cleanup
+app.post('/logout', async (req, res) => {
+  try {
+    log('info', '🚪 Logout requested - starting comprehensive cleanup...');
+
+    const cleanupResults = {
+      clientLogout: false,
+      clientDestroy: false,
+      supabaseSessionDelete: false,
+      supabaseBackupDelete: false,
+      chromeProfileCleanup: false,
+      localSessionCleanup: false,
+      qrCodeCleared: false
+    };
+
+    // Step 1: Logout from WhatsApp if client exists
+    if (client) {
+      try {
+        log('info', '1️⃣ Logging out from WhatsApp...');
+        await client.logout();
+        cleanupResults.clientLogout = true;
+        log('info', '✅ WhatsApp logout successful');
+      } catch (logoutErr) {
+        log('warn', `⚠️ Logout failed (may already be logged out): ${logoutErr.message}`);
+        // Continue cleanup even if logout fails
+      }
+
+      // Step 2: Destroy client instance
+      try {
+        log('info', '2️⃣ Destroying WhatsApp client...');
+        await client.destroy();
+        client = null;
+        cleanupResults.clientDestroy = true;
+        log('info', '✅ Client destroyed successfully');
+      } catch (destroyErr) {
+        log('error', `❌ Client destroy failed: ${destroyErr.message}`);
+        client = null; // Force null even if destroy fails
+      }
+    } else {
+      log('warn', '⚠️ No active client to logout');
+    }
+
+    // Step 3: Clear session from Supabase
+    try {
+      log('info', '3️⃣ Deleting session from Supabase...');
+      const sessionKey = `RemoteAuth-${SESSION_ID}`;
+      await supabaseStore.delete({ session: SESSION_ID });
+      cleanupResults.supabaseSessionDelete = true;
+      log('info', `✅ Session deleted: ${sessionKey}`);
+    } catch (supabaseErr) {
+      log('error', `❌ Supabase session delete failed: ${supabaseErr.message}`);
+    }
+
+    // Step 4: Clear backup session from Supabase
+    try {
+      log('info', '4️⃣ Deleting backup session from Supabase...');
+      const backupKey = `RemoteAuth-${SESSION_ID}_backup`;
+      const { error } = await supabase
+        .from('whatsapp_sessions')
+        .delete()
+        .eq('session_key', backupKey);
+
+      if (!error) {
+        cleanupResults.supabaseBackupDelete = true;
+        log('info', `✅ Backup session deleted: ${backupKey}`);
+      } else {
+        log('warn', `⚠️ Backup delete warning: ${error.message}`);
+      }
+    } catch (backupErr) {
+      log('warn', `⚠️ Backup session delete failed: ${backupErr.message}`);
+    }
+
+    // Step 5: Clear Chrome profile directory
+    try {
+      log('info', '5️⃣ Cleaning Chrome profile...');
+      const chromeProfileDir = path.join(__dirname, '.wwebjs_auth', 'chrome-profile');
+
+      if (fs.existsSync(chromeProfileDir)) {
+        fs.rmSync(chromeProfileDir, { recursive: true, force: true });
+        log('info', '✅ Chrome profile cleared');
+        cleanupResults.chromeProfileCleanup = true;
+      } else {
+        log('info', '✅ Chrome profile already clean (not found)');
+        cleanupResults.chromeProfileCleanup = true;
+      }
+    } catch (chromeErr) {
+      log('error', `❌ Chrome profile cleanup failed: ${chromeErr.message}`);
+    }
+
+    // Step 6: Clear local session directory
+    try {
+      log('info', '6️⃣ Cleaning local session directory...');
+      const sessionPath = path.join(__dirname, `.wwebjs_auth/session-${SESSION_ID}`);
+
+      if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+        log('info', '✅ Local session directory cleared');
+        cleanupResults.localSessionCleanup = true;
+      } else {
+        log('info', '✅ Local session already clean (not found)');
+        cleanupResults.localSessionCleanup = true;
+      }
+    } catch (sessionErr) {
+      log('error', `❌ Local session cleanup failed: ${sessionErr.message}`);
+    }
+
+    // Step 7: Clear temporary session directories
+    try {
+      log('info', '7️⃣ Cleaning temporary session directories...');
+      const authDir = path.join(__dirname, '.wwebjs_auth');
+      const tempSessionPath = path.join(authDir, `wwebjs_temp_session_${SESSION_ID}`);
+
+      if (fs.existsSync(tempSessionPath)) {
+        fs.rmSync(tempSessionPath, { recursive: true, force: true });
+        log('info', '✅ Temporary session directory cleared');
+      } else {
+        log('info', '✅ Temporary session already clean (not found)');
+      }
+    } catch (tempErr) {
+      log('warn', `⚠️ Temporary session cleanup warning: ${tempErr.message}`);
+    }
+
+    // Step 8: Clear QR code from memory
+    currentQRCode = null;
+    cleanupResults.qrCodeCleared = true;
+    log('info', '✅ QR code cleared from memory');
+
+    // Step 9: Broadcast logout status to all WebSocket clients
+    try {
+      broadcastToClients({
+        type: 'logout',
+        message: 'WhatsApp session logged out',
+        timestamp: Date.now()
+      });
+      log('info', '✅ Logout broadcast to WebSocket clients');
+    } catch (broadcastErr) {
+      log('warn', `⚠️ WebSocket broadcast failed: ${broadcastErr.message}`);
+    }
+
+    // Step 10: Reset human behavior manager state
+    try {
+      humanBehavior.client = null;
+      humanBehavior.processedMessages.clear();
+      humanBehavior.messageQueue = [];
+      log('info', '✅ Human behavior manager reset');
+    } catch (behaviorErr) {
+      log('warn', `⚠️ Human behavior reset warning: ${behaviorErr.message}`);
+    }
+
+    const successCount = Object.values(cleanupResults).filter(v => v === true).length;
+    const totalSteps = Object.keys(cleanupResults).length;
+
+    log('info', `🎉 Logout complete: ${successCount}/${totalSteps} cleanup steps successful`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Logout and cleanup completed successfully',
+      details: cleanupResults,
+      summary: `${successCount}/${totalSteps} cleanup steps completed`,
+      ready_for_new_login: true
+    });
+
+  } catch (err) {
+    log('error', `❌ Logout process failed: ${err.message}`);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      message: 'Logout encountered errors, but partial cleanup may have occurred'
+    });
+  }
+});
+
 // Human behavior control endpoints
 app.get('/human-status', (req, res) => {
   res.status(200).json({
