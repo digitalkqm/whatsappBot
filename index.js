@@ -2235,7 +2235,7 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
 
 // Send interest rate broadcast to selected contacts
 app.post('/api/broadcast/interest-rate', async (req, res) => {
-  const { contacts, message, image_url, batch_size, delay_between_messages, notification_contact } = req.body;
+  let { contacts, message, image_url, batch_size, delay_between_messages, notification_contact } = req.body;
 
   if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
     return res.status(400).json({ success: false, error: 'No contacts provided' });
@@ -2243,6 +2243,12 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
 
   if (!message || !message.trim()) {
     return res.status(400).json({ success: false, error: 'Message cannot be empty' });
+  }
+
+  // Enforce minimum delay of 15 seconds (15000ms)
+  if (!delay_between_messages || delay_between_messages < 15000) {
+    log('warn', `⚠️ Delay too short (${delay_between_messages}ms), enforcing 15s minimum`);
+    delay_between_messages = 15000;
   }
 
   try {
@@ -2261,7 +2267,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
         sent_count: 0,
         failed_count: 0,
         batch_size: batch_size || 1,
-        delay_between_messages: delay_between_messages || 7000,
+        delay_between_messages: delay_between_messages || 20000, // Default 20 seconds
         message_content: message,
         message_template: message,
         image_url: image_url || null,
