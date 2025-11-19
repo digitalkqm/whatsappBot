@@ -111,6 +111,10 @@ function handleWebSocketMessage(data) {
       }
     }
 
+    // Hide logout button when QR is shown
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'none';
+
     displayQRCode(data.qr);
   } else if (data.type === 'authenticated') {
     console.log('Authentication in progress...');
@@ -118,6 +122,9 @@ function handleWebSocketMessage(data) {
   } else if (data.type === 'ready') {
     console.log('Authentication successful!');
     showAuthenticationSuccess();
+  } else if (data.type === 'logout') {
+    console.log('Logout event received:', data.message);
+    handleLogoutEvent();
   } else if (data.type === 'status') {
     updateStatus(data.status);
   } else if (data.type === 'workflow') {
@@ -381,6 +388,12 @@ function showAuthenticationSuccess() {
     loggingSection.style.display = 'block';
   }
 
+  // Show logout button
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.style.display = 'inline-block';
+  }
+
   clearQRExpiryTimer();
 
   // Trigger confetti or celebration animation
@@ -567,6 +580,106 @@ async function clearSession() {
   } catch (error) {
     showMessage('Error: ' + error.message, 'error');
   }
+}
+
+// Logout - Comprehensive session cleanup
+async function logout() {
+  if (!confirm('🚪 Logout from WhatsApp?\n\nThis will:\n✓ Disconnect your WhatsApp session\n✓ Clear all session data\n✓ Remove authentication\n✓ Prepare for new login\n\nYou will need to scan QR code again to reconnect.')) {
+    return;
+  }
+
+  const logoutBtn = document.getElementById('logoutBtn');
+  const originalText = logoutBtn ? logoutBtn.innerHTML : '';
+
+  try {
+    // Disable logout button and show loading state
+    if (logoutBtn) {
+      logoutBtn.disabled = true;
+      logoutBtn.innerHTML = '⏳ Logging out...';
+    }
+
+    showMessage('🔄 Logging out and cleaning up session...', 'info');
+
+    const response = await fetch('/logout', { method: 'POST' });
+    const data = await response.json();
+
+    if (data.success) {
+      showMessage(`✅ Logout successful! ${data.summary}`, 'success');
+
+      // Handle logout UI changes
+      handleLogoutEvent();
+
+      // Reload page after short delay to show fresh QR code
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else {
+      showMessage('❌ Logout failed: ' + (data.error || 'Unknown error'), 'error');
+
+      // Re-enable button on failure
+      if (logoutBtn) {
+        logoutBtn.disabled = false;
+        logoutBtn.innerHTML = originalText;
+      }
+    }
+  } catch (error) {
+    showMessage('❌ Error during logout: ' + error.message, 'error');
+
+    // Re-enable button on error
+    if (logoutBtn) {
+      logoutBtn.disabled = false;
+      logoutBtn.innerHTML = originalText;
+    }
+  }
+}
+
+// Handle logout event from WebSocket or API
+function handleLogoutEvent() {
+  console.log('Handling logout event - resetting UI');
+
+  // Clear authentication state
+  localStorage.removeItem('whatsapp_authenticated');
+
+  // Hide logout button
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.style.display = 'none';
+    logoutBtn.disabled = false;
+    logoutBtn.innerHTML = '🚪 Logout';
+  }
+
+  // Show QR section
+  const qrSection = document.getElementById('qrSection');
+  if (qrSection) {
+    qrSection.style.display = 'block';
+  }
+
+  // Hide logging section
+  const loggingSection = document.getElementById('loggingSection');
+  if (loggingSection) {
+    loggingSection.style.display = 'none';
+  }
+
+  // Clear logs
+  const logContainer = document.getElementById('logContainer');
+  if (logContainer) {
+    logContainer.innerHTML = `
+      <div class="log-entry" style="color: var(--text-secondary); padding: 0.5rem;">
+        <span class="log-time">[Waiting for logs...]</span>
+        <span class="log-message">Bot activity will appear here</span>
+      </div>
+    `;
+  }
+
+  // Reset message count
+  totalMessageCount = 0;
+  const totalMessagesEl = document.getElementById('totalMessages');
+  if (totalMessagesEl) {
+    totalMessagesEl.textContent = '0';
+  }
+
+  // Show QR waiting state
+  showQRWaiting();
 }
 
 // Restart bot
