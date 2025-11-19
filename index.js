@@ -1371,38 +1371,35 @@ async function startClient() {
 
   setupClientEvents(client);
 
-  try {
-    // Add 90-second timeout to prevent blocking forever
-    log('info', '⏳ Initializing WhatsApp client (90s timeout)...');
+  // Initialize client in background - don't block on authentication
+  // QR code will be emitted via 'qr' event, authentication via 'ready' event
+  log('info', '⏳ Initializing WhatsApp client in background...');
 
-    const initPromise = client.initialize();
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Client initialization timeout after 90 seconds')), 90000)
-    );
-
-    await Promise.race([initPromise, timeoutPromise]);
+  client.initialize().then(() => {
     log('info', '✅ WhatsApp client initialized successfully.');
 
-    // Initialize message send queue
-    messageSendQueue = new MessageSendQueue(client);
-    log('info', '📬 Message send queue initialized with priority system');
+    // Initialize message send queue after successful init
+    if (!messageSendQueue) {
+      messageSendQueue = new MessageSendQueue(client);
+      log('info', '📬 Message send queue initialized with priority system');
+    }
 
     // Set client on workflow engine after initialization
     workflowEngine.setClient(client);
     workflowEngine.setMessageQueue(messageSendQueue);
-  } catch (err) {
+  }).catch(err => {
     log('error', `❌ WhatsApp client initialization failed: ${err.message}`);
 
-    // Don't set client to null - keep it for retry attempts
-    // The client might still initialize later (e.g., after QR scan)
-    if (err.message.includes('timeout')) {
-      log('warn', '⚠️  Client initialization timed out - may need QR code scan');
-      log('info', '💡 Check /qr-code endpoint to scan and authenticate');
-    } else {
+    // Only nullify client on non-timeout errors
+    if (!err.message.includes('Execution context was destroyed') &&
+        !err.message.includes('timeout')) {
       client = null;
       workflowEngine.setClient(null);
+      log('error', '🔄 Client set to null - will retry on next startClient() call');
+    } else {
+      log('warn', '⚠️ Client initialization issue - keeping client for QR scan');
     }
-  }
+  });
 }
 
 // Express App Setup
@@ -1784,7 +1781,8 @@ app.post('/logout', async (req, res) => {
     // Step 5: Clear Chrome profile directory
     try {
       log('info', '5️⃣ Cleaning Chrome profile...');
-      const chromeProfileDir = path.join(__dirname, '.wwebjs_auth', 'chrome-profile');
+      // Use correct path - matches createWhatsAppClient() line 955
+      const chromeProfileDir = path.join(__dirname, '.wwebjs_chrome_profile');
 
       if (fs.existsSync(chromeProfileDir)) {
         fs.rmSync(chromeProfileDir, { recursive: true, force: true });
@@ -1863,16 +1861,26 @@ app.post('/logout', async (req, res) => {
 
     log('info', `🎉 Logout complete: ${successCount}/${totalSteps} cleanup steps successful`);
 
-    // Step 11: Wait a moment for cleanup to settle, then restart client for new QR code
+    // Step 11: Wait for cleanup to settle, then restart client for new QR code
     setTimeout(async () => {
       try {
         log('info', '🔄 Restarting client to generate new QR code...');
+
+        // Ensure client is truly null before restarting
+        if (client) {
+          log('warn', '⚠️ Client still exists, forcing null...');
+          client = null;
+        }
+
+        // Give filesystem and processes time to fully release resources
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         await startClient();
         log('info', '✅ Client restarted - new QR code should be available');
       } catch (restartErr) {
         log('error', `❌ Failed to restart client after logout: ${restartErr.message}`);
       }
-    }, 2000); // 2 second delay to ensure cleanup completes
+    }, 3000); // 3 second delay to ensure cleanup completes and processes release
 
     res.status(200).json({
       success: true,
