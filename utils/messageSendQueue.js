@@ -49,6 +49,8 @@ class MessageSendQueue {
         resolve,
         reject,
         timestamp: Date.now(),
+        retryCount: 0,
+        maxRetries: 3,
         id: `${priority}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       };
 
@@ -101,7 +103,7 @@ class MessageSendQueue {
       const item = this.queue.shift();
 
       try {
-        console.log(`📨 Sending message [${item.priority}] to ${item.recipient.substring(0, 15)}... - ID: ${item.id}`);
+        console.log(`📨 Sending message [${item.priority}] to ${item.recipient.substring(0, 15)}... - ID: ${item.id}${item.retryCount > 0 ? ` (retry ${item.retryCount}/${item.maxRetries})` : ''}`);
 
         // Send message via WhatsApp client
         let result;
@@ -126,11 +128,37 @@ class MessageSendQueue {
         item.resolve(result);
 
       } catch (error) {
-        // Update stats
+        // Check if error is retryable
+        const isRetryableError = this.isRetryableError(error);
+        const canRetry = item.retryCount < item.maxRetries;
+
+        if (isRetryableError && canRetry) {
+          // Retry the message
+          item.retryCount++;
+          const retryDelay = 2000 * item.retryCount; // Exponential backoff: 2s, 4s, 6s
+
+          console.warn(`⚠️ Retryable error for message [${item.priority}] - ID: ${item.id}: ${error.message}`);
+          console.log(`🔄 Will retry in ${retryDelay}ms (attempt ${item.retryCount}/${item.maxRetries})`);
+
+          // Wait before retry
+          await this.sleep(retryDelay);
+
+          // Re-add to front of queue (maintain priority)
+          this.queue.unshift(item);
+          this.sortQueue();
+
+          continue; // Skip to next iteration
+        }
+
+        // Non-retryable error or max retries exceeded
         this.stats.totalFailed++;
         this.stats.byPriority[item.priority].failed++;
 
-        console.error(`❌ Failed to send message [${item.priority}] - ID: ${item.id}:`, error.message);
+        if (item.retryCount >= item.maxRetries) {
+          console.error(`❌ Max retries exceeded for message [${item.priority}] - ID: ${item.id}: ${error.message}`);
+        } else {
+          console.error(`❌ Failed to send message [${item.priority}] - ID: ${item.id}: ${error.message}`);
+        }
 
         // Reject promise
         item.reject(error);
@@ -149,6 +177,35 @@ class MessageSendQueue {
 
     this.isProcessing = false;
     console.log('✅ Queue processing complete');
+  }
+
+  /**
+   * Check if error is retryable
+   * @param {Error} error - The error object
+   * @returns {boolean} True if error should trigger retry
+   */
+  isRetryableError(error) {
+    const errorMessage = error.message || '';
+
+    // Retryable error patterns
+    const retryablePatterns = [
+      'detached Frame',           // Puppeteer frame detached
+      'Execution context was destroyed', // Page reloaded
+      'Session closed',           // Browser session issue
+      'Target closed',            // Browser target closed
+      'Protocol error',           // Connection issue
+      'Navigation failed',        // Page navigation issue
+      'net::ERR_',               // Network errors
+      'timeout',                 // Timeout errors
+      'ECONNRESET',             // Connection reset
+      'ETIMEDOUT',              // Timeout
+      'ENOTFOUND'               // DNS/network issue
+    ];
+
+    // Check if error matches any retryable pattern
+    return retryablePatterns.some(pattern =>
+      errorMessage.toLowerCase().includes(pattern.toLowerCase())
+    );
   }
 
   /**

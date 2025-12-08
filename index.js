@@ -2904,17 +2904,9 @@ const runWatchdog = async () => {
     log('info', `✅ Watchdog: client state is "${state}".`);
 
     if (state === 'CONNECTED') {
-      // Only save session periodically during active hours
-      if (humanBehavior.isActiveHours()) {
-        try {
-          await safelyTriggerSessionSave(client);
-          log('info', '💾 Periodic session save completed');
-        } catch (saveErr) {
-          log('warn', `Periodic session save failed: ${saveErr.message}`);
-        }
-      } else {
-        log('debug', '💤 Skipping session save (inactive hours)');
-      }
+      // Session is already saved after authentication and ready events
+      // Periodic saves are unnecessary and can cause frame detachment during message sends
+      log('debug', '✅ Watchdog: Connection healthy, session management handled by events');
     } else {
       log('warn', `⚠️ Watchdog detected bad state "${state}". Restarting client...`);
       await client.destroy();
