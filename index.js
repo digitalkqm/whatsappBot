@@ -1003,7 +1003,7 @@ function createWhatsAppClient() {
       authStrategy: new RemoteAuth({
         clientId: SESSION_ID,
         store: supabaseStore,
-        backupSyncIntervalMs: 300000,
+        backupSyncIntervalMs: 0, // Disable RemoteAuth automatic backups - incompatible with our JSON localStorage extraction
         dataPath: authDir, // Use parent directory, not session-specific path
       }),
       puppeteer: {
@@ -1152,6 +1152,30 @@ function setupClientEvents(c) {
         log('warn', `Failed to save session after ready: ${err.message}`);
       }
     }, delay);
+
+    // Set up controlled periodic session saves (every 30 minutes) as safety net
+    // This replaces RemoteAuth's automatic backups with our compatible extraction method
+    const periodicSaveInterval = setInterval(async () => {
+      if (c && typeof c.getState === 'function') {
+        try {
+          const state = await c.getState();
+          if (state === 'CONNECTED') {
+            log('debug', '💾 Periodic session save starting (30min interval)');
+            await safelyTriggerSessionSave(c);
+          } else {
+            log('debug', `⏭️ Skipping periodic save - client state: ${state}`);
+          }
+        } catch (err) {
+          log('warn', `Periodic session save failed: ${err.message}`);
+        }
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+
+    // Clean up interval on disconnect
+    c.once('disconnected', () => {
+      clearInterval(periodicSaveInterval);
+      log('debug', '🧹 Cleared periodic save interval');
+    });
   });
 
   c.on('authenticated', async () => {
