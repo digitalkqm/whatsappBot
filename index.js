@@ -1190,15 +1190,8 @@ function setupClientEvents(c) {
     // Broadcast authenticating status to dashboard
     broadcastToClients({ type: 'authenticated', status: 'authenticating' });
 
-    // Trigger session save after authentication with human-like delay
-    const delay = humanBehavior.getRandomDelay(1000, 3000);
-    setTimeout(async () => {
-      try {
-        await safelyTriggerSessionSave(c);
-      } catch (err) {
-        log('warn', `Failed to save session after auth: ${err.message}`);
-      }
-    }, delay);
+    // Note: Session save removed here to avoid duplicate with 'ready' event
+    // Session will be saved when 'ready' event fires (client fully initialized)
   });
 
   c.on('remote_session_saved', () => {
