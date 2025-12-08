@@ -134,13 +134,21 @@ Required fields must have actual values (not placeholders). Agent Number is opti
 }
 
 /**
- * Route message to banker based on banker_name_requested
+ * Route message to banker(s) based on banker_name_requested
+ * Supports MULTIPLE bankers via comma-separated list
  * Uses EXACT keyword matching (case-insensitive)
+ * Returns array of banker objects
  */
-async function routeToBanker(bankerNameRequested) {
-  const lowerName = bankerNameRequested.toLowerCase().trim();
+async function routeToBankers(bankerNameRequested) {
+  console.log(`🔍 Routing banker request: "${bankerNameRequested}"`);
 
-  console.log(`🔍 Routing banker request: "${bankerNameRequested}" (lowercase: "${lowerName}")`);
+  // Split by comma to support multiple bankers
+  const requestedNames = bankerNameRequested
+    .split(',')
+    .map(name => name.trim())
+    .filter(name => name.length > 0);
+
+  console.log(`📋 Parsed ${requestedNames.length} banker(s):`, requestedNames);
 
   // Find banker by routing keywords (ordered by creation date only)
   const { data: bankers, error } = await supabase
@@ -151,40 +159,62 @@ async function routeToBanker(bankerNameRequested) {
 
   if (error) {
     console.error('❌ Error fetching bankers:', error);
-    return null;
+    return [];
   }
 
   if (!bankers || bankers.length === 0) {
     console.error('❌ No active bankers found in database');
-    return null;
+    return [];
   }
 
-  console.log(`📊 Found ${bankers.length} active banker(s):`);
+  console.log(`📊 Found ${bankers.length} active banker(s) in database:`);
   bankers.forEach((b, idx) => {
     const keyword = (b.routing_keywords && b.routing_keywords.length > 0) ? b.routing_keywords[0] : 'none';
     console.log(`   ${idx + 1}. ${b.name} (${b.bank_name}) - Keyword: "${keyword}"`);
   });
 
-  // Find matching banker using EXACT keyword match
-  for (const banker of bankers) {
-    const keywords = banker.routing_keywords || [];
+  // Match each requested name
+  const matchedBankers = [];
+  const unmatchedNames = [];
 
-    // Use only the first keyword for matching
-    if (keywords.length > 0) {
-      const keyword = keywords[0].toLowerCase().trim();
+  for (const requestedName of requestedNames) {
+    const lowerName = requestedName.toLowerCase().trim();
+    let found = false;
 
-      if (lowerName === keyword) {
-        console.log(`✅ Exact match found! "${lowerName}" matches keyword "${keyword}" → Routing to: ${banker.name} (${banker.bank_name})`);
-        return banker;
+    // Find matching banker using EXACT keyword match
+    for (const banker of bankers) {
+      const keywords = banker.routing_keywords || [];
+
+      // Use only the first keyword for matching
+      if (keywords.length > 0) {
+        const keyword = keywords[0].toLowerCase().trim();
+
+        if (lowerName === keyword) {
+          console.log(`✅ Match found! "${requestedName}" → ${banker.name} (${banker.bank_name})`);
+          matchedBankers.push(banker);
+          found = true;
+          break;
+        }
       }
+    }
+
+    if (!found) {
+      console.error(`❌ No match for: "${requestedName}"`);
+      unmatchedNames.push(requestedName);
     }
   }
 
-  // No match found - return null to indicate error
-  console.error(`❌ No exact keyword match found for "${bankerNameRequested}"`);
-  console.error(`💡 Tip: Add exact routing keyword "${bankerNameRequested}" to a banker in database`);
+  // Report results
+  if (matchedBankers.length > 0) {
+    console.log(`✅ Successfully matched ${matchedBankers.length}/${requestedNames.length} banker(s)`);
+  }
 
-  return null;
+  if (unmatchedNames.length > 0) {
+    console.error(`❌ Failed to match ${unmatchedNames.length} banker(s):`, unmatchedNames);
+    console.error(`💡 Tip: Add exact routing keywords to database for: ${unmatchedNames.join(', ')}`);
+  }
+
+  return matchedBankers;
 }
 
 /**
@@ -235,117 +265,140 @@ async function valuationRequestWorkflow(payload, engine) {
 
   console.log('✅ Validation passed - all required fields present');
 
-  // Route to banker
-  const banker = await routeToBanker(parsed.banker_name_requested);
-  if (!banker) {
-    console.error('❌ No banker found for:', parsed.banker_name_requested);
-    await message.reply('❌ Could not find banker. Please check banker name and try again.');
+  // Route to banker(s) - supports multiple bankers
+  const bankers = await routeToBankers(parsed.banker_name_requested);
+  if (!bankers || bankers.length === 0) {
+    console.error('❌ No bankers found for:', parsed.banker_name_requested);
+    await message.reply('❌ Could not find any matching bankers. Please check banker names and try again.');
     return;
   }
 
-  console.log('✅ Routed to banker:', banker.name, banker.bank_name);
+  console.log(`✅ Routed to ${bankers.length} banker(s):`, bankers.map(b => `${b.name} (${b.bank_name})`).join(', '));
 
-  // Save to Supabase
-  const { data: savedValuation, error: saveError } = await supabase
-    .from('valuation_requests')
-    .insert({
-      // Original request tracking
-      group_id: groupId,
-      sender_id: senderId,
-      message_id: messageId,
-      requester_group_id: groupId,
-      request_message_id: messageId,
-      raw_message: text,
-
-      // Template fields
-      address: parsed.address,
-      size: parsed.size,
-      asking: parsed.asking,
-      salesperson_name: parsed.salesperson_name,
-      agent_number: parsed.agent_number,
-      agent_whatsapp_id: parsed.agent_whatsapp_id,
-      banker_name_requested: parsed.banker_name_requested,
-
-      // Banker assignment
-      banker_id: banker.id,
-      banker_name: banker.name,
-      banker_agent_number: banker.agent_number,
-      target_group_id: banker.whatsapp_group_id,
-
-      // Status
-      status: 'pending'
-    })
-    .select()
-    .single();
-
-  if (saveError) {
-    console.error('❌ Error saving to Supabase:', saveError);
-    await message.reply('❌ Failed to save request. Please try again.');
-    return;
-  }
-
-  console.log('✅ Saved to Supabase:', savedValuation.id);
-
-  // Forward to banker group (ONLY 3 fields)
+  // Prepare banker message (ONLY 3 fields)
   const bankerMessage = formatBankerMessage(parsed.address, parsed.size, parsed.asking);
 
-  try {
-    // Send via message queue with CRITICAL priority (customer-facing workflow)
-    console.log('📤 Queuing valuation request [critical] to banker group:', banker.whatsapp_group_id);
-    const sentMessage = await engine.messageQueue.send(
-      banker.whatsapp_group_id,
-      bankerMessage,
-      'critical'
-    );
+  // Process each banker: save to database and forward
+  const savedValuations = [];
+  const forwardErrors = [];
 
-    console.log('✅ Forwarded to banker group:', banker.whatsapp_group_id);
-    console.log('✅ Forward message ID:', sentMessage.id._serialized);
+  for (const banker of bankers) {
+    console.log(`\n📌 Processing banker: ${banker.name} (${banker.bank_name})`);
 
-    // Update with forward tracking (keep status as 'pending' until banker replies)
-    const { error: updateError } = await supabase
+    // Save to Supabase
+    const { data: savedValuation, error: saveError } = await supabase
       .from('valuation_requests')
-      .update({
-        forwarded_to_banker: true,
-        forward_message_id: sentMessage.id._serialized,
-        forwarded_at: new Date().toISOString()
-        // Note: status remains 'pending' until banker replies
-      })
-      .eq('id', savedValuation.id);
+      .insert({
+        // Original request tracking
+        group_id: groupId,
+        sender_id: senderId,
+        message_id: messageId,
+        requester_group_id: groupId,
+        request_message_id: messageId,
+        raw_message: text,
 
-    if (updateError) {
-      console.error('❌ Error updating forward tracking:', updateError);
-      await message.reply('❌ Request sent but failed to update tracking. Please contact support.');
-      return;
+        // Template fields
+        address: parsed.address,
+        size: parsed.size,
+        asking: parsed.asking,
+        salesperson_name: parsed.salesperson_name,
+        agent_number: parsed.agent_number,
+        agent_whatsapp_id: parsed.agent_whatsapp_id,
+        banker_name_requested: parsed.banker_name_requested,
+
+        // Banker assignment
+        banker_id: banker.id,
+        banker_name: banker.name,
+        banker_agent_number: banker.agent_number,
+        target_group_id: banker.whatsapp_group_id,
+
+        // Status
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (saveError) {
+      console.error(`❌ Error saving to Supabase for ${banker.name}:`, saveError);
+      forwardErrors.push(`${banker.name}: Failed to save`);
+      continue; // Skip to next banker
     }
 
-    console.log('✅ Updated forward tracking');
+    console.log(`✅ Saved to Supabase: ${savedValuation.id}`);
+    savedValuations.push(savedValuation);
 
-  } catch (forwardError) {
-    console.error('❌ Error forwarding to banker:', forwardError);
-    await message.reply('❌ Failed to forward to banker. Please try again.');
+    // Forward to banker group
+    try {
+      // Send via message queue with CRITICAL priority (customer-facing workflow)
+      console.log(`📤 Queuing valuation request [critical] to banker group: ${banker.whatsapp_group_id}`);
+      const sentMessage = await engine.messageQueue.send(
+        banker.whatsapp_group_id,
+        bankerMessage,
+        'critical'
+      );
+
+      console.log(`✅ Forwarded to ${banker.name}'s group:`, banker.whatsapp_group_id);
+      console.log(`✅ Forward message ID:`, sentMessage.id._serialized);
+
+      // Update with forward tracking (keep status as 'pending' until banker replies)
+      const { error: updateError } = await supabase
+        .from('valuation_requests')
+        .update({
+          forwarded_to_banker: true,
+          forward_message_id: sentMessage.id._serialized,
+          forwarded_at: new Date().toISOString()
+          // Note: status remains 'pending' until banker replies
+        })
+        .eq('id', savedValuation.id);
+
+      if (updateError) {
+        console.error(`❌ Error updating forward tracking for ${banker.name}:`, updateError);
+        forwardErrors.push(`${banker.name}: Failed to update tracking`);
+      } else {
+        console.log(`✅ Updated forward tracking for ${banker.name}`);
+      }
+
+    } catch (forwardError) {
+      console.error(`❌ Error forwarding to ${banker.name}:`, forwardError);
+      forwardErrors.push(`${banker.name}: Failed to forward`);
+    }
+  }
+
+  // Check if any bankers were successfully processed
+  if (savedValuations.length === 0) {
+    await message.reply('❌ Failed to process request for all bankers. Please try again.');
     return;
   }
 
   // Send acknowledgment to requester
-  const ackMessage = formatAcknowledgment(banker.name);
+  const bankerNames = bankers.map(b => b.name).join(', ');
+  const ackMessage = formatAcknowledgment(bankerNames);
 
   try {
     await message.reply(ackMessage);
     console.log('✅ Sent acknowledgment to requester');
 
-    // Update acknowledgment tracking
-    await supabase
-      .from('valuation_requests')
-      .update({
-        acknowledgment_sent: true
-      })
-      .eq('id', savedValuation.id);
+    // Update acknowledgment tracking for all saved valuations
+    if (savedValuations.length > 0) {
+      const valuationIds = savedValuations.map(v => v.id);
+      await supabase
+        .from('valuation_requests')
+        .update({
+          acknowledgment_sent: true
+        })
+        .in('id', valuationIds);
+    }
 
   } catch (ackError) {
     console.error('❌ Error sending acknowledgment:', ackError);
   }
 
-  console.log('✅ Valuation request workflow complete');
+  // Report any errors
+  if (forwardErrors.length > 0) {
+    console.error(`⚠️ Some forwards had errors (${forwardErrors.length}/${bankers.length}):`, forwardErrors);
+  }
+
+  console.log(`✅ Valuation request workflow complete - processed ${savedValuations.length}/${bankers.length} banker(s)`);
 }
 
 module.exports = { valuationRequestWorkflow };
