@@ -695,16 +695,16 @@ class SupabaseStore {
   // Required by RemoteAuth interface
   async save({ session, sessionData }) {
     const sessionKey = session || this.sessionId;
-    
+
     try {
       // Validate sessionData before saving
       if (!sessionData || typeof sessionData !== 'object') {
-        log('warn', `⚠️ RemoteAuth save called with invalid data (${typeof sessionData}) - likely frame detachment, skipping save`);
-        return;
+        log('debug', `⏭️ RemoteAuth automatic backup skipped - incompatible data type (${typeof sessionData})`);
+        return; // Gracefully ignore RemoteAuth's ZIP-based backups
       }
 
       const dataSize = JSON.stringify(sessionData).length;
-      log('info', `Saving session data (${dataSize} bytes) for ${sessionKey}`);
+      log('info', `💾 Saving session data (${dataSize} bytes) for ${sessionKey}`);
 
       // Ensure we have essential WhatsApp data
       const hasEssentialData = Object.keys(sessionData).some(key =>
@@ -717,14 +717,20 @@ class SupabaseStore {
       );
 
       if (!hasEssentialData) {
-        log('warn', 'Session data missing essential WhatsApp keys, attempting to extract fresh data');
-        
+        log('debug', `⏭️ RemoteAuth automatic backup attempt - missing WhatsApp localStorage keys (likely ZIP extraction)`);
+
         if (this.client) {
           const freshData = await extractSessionData(this.client);
           if (freshData) {
             sessionData = freshData;
-            log('info', 'Using fresh extracted session data');
+            log('info', '✅ Recovered with fresh localStorage extraction');
+          } else {
+            log('debug', '⏭️ Cannot recover - skipping this save attempt');
+            return; // Skip if we can't get valid data
           }
+        } else {
+          log('debug', '⏭️ No client available for recovery - skipping save');
+          return; // Skip if no client to extract from
         }
       }
 
@@ -1003,7 +1009,7 @@ function createWhatsAppClient() {
       authStrategy: new RemoteAuth({
         clientId: SESSION_ID,
         store: supabaseStore,
-        backupSyncIntervalMs: 0, // Disable RemoteAuth automatic backups - incompatible with our JSON localStorage extraction
+        backupSyncIntervalMs: 3600000, // 1 hour - minimum interference (RemoteAuth requires min 60000ms)
         dataPath: authDir, // Use parent directory, not session-specific path
       }),
       puppeteer: {
