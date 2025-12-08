@@ -621,14 +621,17 @@ class SupabaseStore {
       const exists = data && data.length > 0;
 
       if (exists) {
-        log('info', `✅ Session found in Supabase: ${session || this.sessionId} - returning true to restore session`);
+        log('info', `✅ Session found in Supabase: ${session || this.sessionId}`);
+        log('info', `⏭️ Returning false (RemoteAuth ZIP incompatibility - localStorage will be injected after browser init)`);
       } else {
         log('info', `❌ No session found in Supabase: ${session || this.sessionId} - QR code will be generated`);
       }
 
-      // Return true if session exists - this tells WhatsApp Web.js to restore the session
-      // WhatsApp will call extract() to get the session data, avoiding QR code generation
-      return exists;
+      // CRITICAL: Always return false to prevent RemoteAuth ZIP extraction errors
+      // RemoteAuth expects extract() to write a ZIP file, but we use JSON localStorage
+      // Returning false makes RemoteAuth skip ZIP extraction and start fresh browser
+      // We inject localStorage data ourselves after browser initialization
+      return false;
     } catch (err) {
       log('error', `Exception in sessionExists: ${err.message}`);
       return false;
@@ -636,7 +639,7 @@ class SupabaseStore {
   }
 
   // Required by RemoteAuth interface
-  async extract({ session }) {
+  async extract({ session, path }) {
     const sessionKey = session || this.sessionId;
     try {
       const { data, error } = await this.supabase
@@ -650,7 +653,7 @@ class SupabaseStore {
         log('warn', `No existing session found for ${sessionKey}: ${error.message}`);
         return null;
       }
-      
+
       if (!data?.session_data) {
         log('warn', `Session data is empty for ${sessionKey}`);
         return null;
@@ -683,8 +686,12 @@ class SupabaseStore {
           return null;
         }
       }
-      
+
       log('info', `✅ Valid session data extracted from Supabase for ${sessionKey}`);
+
+      // Store extracted data for browser injection (will be used by page.evaluate())
+      this.extractedSessionData = sessionData;
+
       return sessionData;
     } catch (err) {
       log('error', `Exception in extract: ${err.message}`);
@@ -1112,6 +1119,46 @@ function setupClientEvents(c) {
     log('error', `Client error: ${error.message}`);
     if (error.stack) {
       log('debug', `Stack trace: ${error.stack}`);
+    }
+  });
+
+  // Inject localStorage from Supabase BEFORE WhatsApp connects
+  c.on('loading_screen', async (percent, message) => {
+    log('debug', `Loading WhatsApp: ${percent}% - ${message}`);
+
+    // Only inject on first load (when percent is low)
+    if (percent < 30) {
+      try {
+        // Check if we have session data in Supabase
+        const sessionKey = `RemoteAuth-${SESSION_ID}`;
+        const { data, error } = await supabase
+          .from('whatsapp_sessions')
+          .select('session_data')
+          .eq('session_key', sessionKey)
+          .limit(1)
+          .single();
+
+        if (!error && data?.session_data) {
+          const sessionData = typeof data.session_data === 'string'
+            ? JSON.parse(data.session_data)
+            : data.session_data;
+
+          log('info', `📥 Found existing session in Supabase - injecting localStorage to restore session`);
+
+          // Inject localStorage data to avoid QR code
+          await c.pupPage.evaluate((storageData) => {
+            for (const [key, value] of Object.entries(storageData)) {
+              localStorage.setItem(key, value);
+            }
+          }, sessionData);
+
+          log('info', `✅ Injected ${Object.keys(sessionData).length} localStorage items - session should restore without QR`);
+        } else {
+          log('debug', `No existing session found - QR code will be required`);
+        }
+      } catch (err) {
+        log('warn', `Failed to inject localStorage: ${err.message} - QR code may be required`);
+      }
     }
   });
 
