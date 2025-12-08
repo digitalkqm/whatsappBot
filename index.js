@@ -607,10 +607,6 @@ class SupabaseStore {
   // Required by RemoteAuth interface
   async sessionExists({ session }) {
     try {
-      // IMPORTANT: Always return false to prevent RemoteAuth from trying to extract
-      // from a zip file. We'll handle session restoration in the extract() method.
-      // This prevents the "ENOENT: no such file or directory, open 'RemoteAuth-*.zip'" error
-
       const { data, error } = await this.supabase
         .from('whatsapp_sessions')
         .select('session_key')
@@ -623,13 +619,16 @@ class SupabaseStore {
       }
 
       const exists = data && data.length > 0;
-      log('info', `Session found in Supabase: ${exists} for session: ${session || this.sessionId}`);
 
-      // Always return false to force RemoteAuth to call extract() instead of trying to read zip
       if (exists) {
-        log('info', `Returning false to sessionExists to trigger extract() method`);
+        log('info', `✅ Session found in Supabase: ${session || this.sessionId} - returning true to restore session`);
+      } else {
+        log('info', `❌ No session found in Supabase: ${session || this.sessionId} - QR code will be generated`);
       }
-      return false;
+
+      // Return true if session exists - this tells WhatsApp Web.js to restore the session
+      // WhatsApp will call extract() to get the session data, avoiding QR code generation
+      return exists;
     } catch (err) {
       log('error', `Exception in sessionExists: ${err.message}`);
       return false;
@@ -700,7 +699,7 @@ class SupabaseStore {
     try {
       // Validate sessionData before saving
       if (!sessionData || typeof sessionData !== 'object') {
-        log('error', 'Invalid session data provided for saving');
+        log('warn', `⚠️ RemoteAuth save called with invalid data (${typeof sessionData}) - likely frame detachment, skipping save`);
         return;
       }
 
@@ -1173,7 +1172,7 @@ function setupClientEvents(c) {
   });
 
   c.on('remote_session_saved', () => {
-    log('info', '💾 Session saved to Supabase via RemoteAuth.');
+    log('debug', '💾 RemoteAuth save attempt completed (check logs above for actual result)');
   });
 
   c.on('disconnected', async reason => {
