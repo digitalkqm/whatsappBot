@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { Client, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const QRCode = require('qrcode');
 const express = require('express');
 const axios = require('axios');
@@ -488,480 +488,18 @@ const log = (level, message, ...args) => {
 // Global QR code storage for dashboard
 let currentQRCode = null;
 
-// --- Enhanced Session Data Extraction ---
-async function extractSessionData(client) {
-  if (!client || !client.pupPage) {
-    log('warn', '⚠️ Cannot extract session data: No puppeteer page available');
-    return null;
-  }
-  
-  try {
-    // Check if page is still usable
-    try {
-      const isPageAlive = await client.pupPage.evaluate(() => true).catch(() => false);
-      if (!isPageAlive) {
-        log('warn', '⚠️ Puppeteer page is no longer responsive, cannot extract data');
-        return null;
-      }
-    } catch (pageErr) {
-      log('warn', `⚠️ Error checking page status: ${pageErr.message}`);
-      return null;
-    }
-    
-    // Enhanced localStorage extraction 
-    const rawLocalStorage = await client.pupPage.evaluate(() => {
-      try {
-        // First, verify WAWebJS has properly loaded
-        if (typeof window.Store === 'undefined' || !window.Store) {
-          console.error("WhatsApp Web Store not initialized");
-          return { error: "Store not initialized" };
-        }
-        
-        // Extract ALL localStorage data comprehensively
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          data[key] = localStorage.getItem(key);
-        }
-        
-        // Add additional WAWebJS-specific session data if available
-        if (window.Store && window.Store.AppState) {
-          data['WAWebJS_AppState'] = JSON.stringify(window.Store.AppState.serialize());
-        }
-        
-        // Add session metadata
-        data['_session_metadata'] = JSON.stringify({
-          timestamp: Date.now(),
-          userAgent: navigator.userAgent,
-          url: window.location.href
-        });
-        
-        return data;
-      } catch (e) {
-        console.error("Error extracting localStorage:", e);
-        return { error: e.toString() };
-      }
-    }).catch(err => {
-      log('warn', `⚠️ Error during page evaluation: ${err.message}`);
-      return { error: err.message };
-    });
-    
-    if (rawLocalStorage && rawLocalStorage.error) {
-      log('warn', `⚠️ Error in page extraction: ${rawLocalStorage.error}`);
-      return null;
-    }
-    
-    if (rawLocalStorage && Object.keys(rawLocalStorage).length > 5) {
-      log('info', `🔍 Extracted raw localStorage with ${Object.keys(rawLocalStorage).length} items`);
-
-      // Log a few keys for debugging (first 5 keys)
-      const sampleKeys = Object.keys(rawLocalStorage).slice(0, 5);
-      log('debug', `Sample keys: ${sampleKeys.join(', ')}`);
-
-      // Validate session size and content
-      const sessionSize = JSON.stringify(rawLocalStorage).length;
-
-      // More flexible validation - check for any WhatsApp-related keys
-      const hasWAData = Object.keys(rawLocalStorage).some(key =>
-        key.toLowerCase().includes('wa') ||
-        key.includes('WABrowserId') ||
-        key.includes('WASecretBundle') ||
-        key.includes('WAToken') ||
-        key.includes('noise') ||
-        key.includes('session')
-      );
-
-      if (sessionSize < 1000) {
-        log('warn', `Session data too small (${sessionSize} bytes), might be invalid`);
-        return null;
-      }
-
-      if (!hasWAData) {
-        log('warn', 'Session data missing essential WhatsApp keys');
-        log('debug', `All keys: ${Object.keys(rawLocalStorage).join(', ')}`);
-        return null;
-      }
-
-      log('info', `✅ Valid session data extracted (${sessionSize} bytes)`);
-      return rawLocalStorage;
-    } else {
-      log('warn', 'localStorage extraction found too few items');
-    }
-    
-    return null;
-  } catch (err) {
-    log('error', `Failed to extract session data: ${err.message}`);
-    return null;
-  }
-}
-
-// --- Enhanced Supabase Store for WhatsApp Session ---
-class SupabaseStore {
-  constructor(supabaseClient, sessionId) {
-    this.supabase = supabaseClient;
-    this.sessionId = sessionId;
-    this.client = null; // Will be set by RemoteAuth
-    log('info', `SupabaseStore initialized for session ID: ${this.sessionId}`);
-  }
-
-  // Required by RemoteAuth interface
-  async sessionExists({ session }) {
-    try {
-      const { data, error } = await this.supabase
-        .from('whatsapp_sessions')
-        .select('session_key')
-        .eq('session_key', session || this.sessionId)
-        .limit(1);
-
-      if (error) {
-        log('error', `Supabase error in sessionExists: ${error.message}`);
-        return false;
-      }
-
-      const exists = data && data.length > 0;
-
-      if (exists) {
-        log('info', `✅ Session found in Supabase: ${session || this.sessionId}`);
-        log('info', `⏭️ Returning false (RemoteAuth ZIP incompatibility - localStorage will be injected after browser init)`);
-      } else {
-        log('info', `❌ No session found in Supabase: ${session || this.sessionId} - QR code will be generated`);
-      }
-
-      // CRITICAL: Always return false to prevent RemoteAuth ZIP extraction errors
-      // RemoteAuth expects extract() to write a ZIP file, but we use JSON localStorage
-      // Returning false makes RemoteAuth skip ZIP extraction and start fresh browser
-      // We inject localStorage data ourselves after browser initialization
-      return false;
-    } catch (err) {
-      log('error', `Exception in sessionExists: ${err.message}`);
-      return false;
-    }
-  }
-
-  // Required by RemoteAuth interface
-  async extract({ session, path }) {
-    const sessionKey = session || this.sessionId;
-    try {
-      const { data, error } = await this.supabase
-        .from('whatsapp_sessions')
-        .select('session_data')
-        .eq('session_key', sessionKey)
-        .limit(1)
-        .single();
-
-      if (error) {
-        log('warn', `No existing session found for ${sessionKey}: ${error.message}`);
-        return null;
-      }
-
-      if (!data?.session_data) {
-        log('warn', `Session data is empty for ${sessionKey}`);
-        return null;
-      }
-
-      // Validate session data structure
-      let sessionData = data.session_data;
-      if (typeof sessionData === 'string') {
-        try {
-          sessionData = JSON.parse(sessionData);
-        } catch (parseErr) {
-          log('error', `Failed to parse session data: ${parseErr.message}`);
-          return null;
-        }
-      }
-
-      // Validate essential session keys
-      if (typeof sessionData === 'object' && sessionData !== null) {
-        const hasEssentialData = Object.keys(sessionData).some(key =>
-          key.toLowerCase().includes('wa') ||
-          key.includes('WABrowserId') ||
-          key.includes('WASecretBundle') ||
-          key.includes('WAToken') ||
-          key.includes('noise') ||
-          key.includes('session')
-        );
-
-        if (!hasEssentialData) {
-          log('warn', `Session data exists but missing essential WhatsApp keys for ${sessionKey}`);
-          return null;
-        }
-      }
-
-      log('info', `✅ Valid session data extracted from Supabase for ${sessionKey}`);
-
-      // Store extracted data for browser injection (will be used by page.evaluate())
-      this.extractedSessionData = sessionData;
-
-      return sessionData;
-    } catch (err) {
-      log('error', `Exception in extract: ${err.message}`);
-      return null;
-    }
-  }
-
-  // Required by RemoteAuth interface
-  async save({ session, sessionData }) {
-    const sessionKey = session || this.sessionId;
-
-    try {
-      // Validate sessionData before saving
-      if (!sessionData || typeof sessionData !== 'object') {
-        log('debug', `⏭️ RemoteAuth automatic backup skipped - incompatible data type (${typeof sessionData})`);
-        return; // Gracefully ignore RemoteAuth's ZIP-based backups
-      }
-
-      const dataSize = JSON.stringify(sessionData).length;
-      log('info', `💾 Saving session data (${dataSize} bytes) for ${sessionKey}`);
-
-      // Ensure we have essential WhatsApp data
-      const hasEssentialData = Object.keys(sessionData).some(key =>
-        key.toLowerCase().includes('wa') ||
-        key.includes('WABrowserId') ||
-        key.includes('WASecretBundle') ||
-        key.includes('WAToken') ||
-        key.includes('noise') ||
-        key.includes('session')
-      );
-
-      if (!hasEssentialData) {
-        log('debug', `⏭️ RemoteAuth automatic backup attempt - missing WhatsApp localStorage keys (likely ZIP extraction)`);
-
-        if (this.client) {
-          const freshData = await extractSessionData(this.client);
-          if (freshData) {
-            sessionData = freshData;
-            log('info', '✅ Recovered with fresh localStorage extraction');
-          } else {
-            log('debug', '⏭️ Cannot recover - skipping this save attempt');
-            return; // Skip if we can't get valid data
-          }
-        } else {
-          log('debug', '⏭️ No client available for recovery - skipping save');
-          return; // Skip if no client to extract from
-        }
-      }
-
-      const { error } = await this.supabase
-        .from('whatsapp_sessions')
-        .upsert({ 
-          session_key: sessionKey, 
-          session_data: sessionData,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'session_key' });
-
-      if (error) {
-        log('error', `Failed to save session: ${error.message}`);
-      } else {
-        log('info', `💾 Session saved to Supabase successfully for ${sessionKey}`);
-        
-        // Create additional backup
-        await this.createBackup(sessionKey, sessionData);
-      }
-    } catch (err) {
-      log('error', `Exception in save: ${err.message}`);
-    }
-  }
-
-  // Required by RemoteAuth interface
-  async delete({ session }) {
-    const sessionKey = session || this.sessionId;
-    try {
-      const { error } = await this.supabase
-        .from('whatsapp_sessions')
-        .delete()
-        .eq('session_key', sessionKey);
-
-      if (error) {
-        log('error', `Failed to delete session: ${error.message}`);
-      } else {
-        log('info', `🗑️ Session deleted from Supabase for ${sessionKey}`);
-      }
-    } catch (err) {
-      log('error', `Exception in delete: ${err.message}`);
-    }
-  }
-
-  // Enhanced backup functionality
-  async createBackup(sessionKey, sessionData) {
-    try {
-      const backupKey = `${sessionKey}_backup`;
-      
-      const { error } = await this.supabase
-        .from('whatsapp_sessions')
-        .upsert({
-          session_key: backupKey,
-          session_data: sessionData,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'session_key' });
-
-      if (error) {
-        log('warn', `Failed to create backup: ${error.message}`);
-      } else {
-        log('info', `📦 Backup created for ${sessionKey}`);
-      }
-    } catch (err) {
-      log('warn', `Exception creating backup: ${err.message}`);
-    }
-  }
-
-  // Method to extract and backup local session to Supabase
-  async extractLocalSession() {
-    try {
-      const sessionPath = path.join(__dirname, `.wwebjs_auth/session-${this.sessionId}`);
-      
-      if (!fs.existsSync(sessionPath)) {
-        log('warn', 'No local session directory found');
-        return false;
-      }
-
-      // Read session files and create backup
-      const sessionFiles = this.readSessionFiles(sessionPath);
-      if (sessionFiles && Object.keys(sessionFiles).length > 0) {
-        await this.save({ sessionData: sessionFiles });
-        log('info', '📦 Local session extracted and saved to Supabase');
-        return true;
-      }
-      
-      return false;
-    } catch (err) {
-      log('error', `Failed to extract local session: ${err.message}`);
-      return false;
-    }
-  }
-
-  readSessionFiles(dirPath) {
-    try {
-      const sessionData = {};
-      const files = fs.readdirSync(dirPath, { withFileTypes: true });
-      
-      for (const file of files) {
-        const filePath = path.join(dirPath, file.name);
-        
-        if (file.isDirectory()) {
-          sessionData[file.name] = this.readSessionFiles(filePath);
-        } else {
-          try {
-            sessionData[file.name] = fs.readFileSync(filePath, 'utf8');
-          } catch (err) {
-            // Skip files that can't be read
-            log('warn', `Could not read file ${filePath}: ${err.message}`);
-          }
-        }
-      }
-      
-      return sessionData;
-    } catch (err) {
-      log('error', `Error reading session files: ${err.message}`);
-      return null;
-    }
-  }
-
-  // Enhanced session validation
-  async validateSession(sessionData) {
-    if (!sessionData || typeof sessionData !== 'object') {
-      return false;
-    }
-
-    // More flexible validation
-    const hasRequiredKeys = Object.keys(sessionData).some(key =>
-      key.toLowerCase().includes('wa') ||
-      key.includes('WABrowserId') ||
-      key.includes('WASecretBundle') ||
-      key.includes('WAToken') ||
-      key.includes('noise') ||
-      key.includes('session')
-    );
-
-    if (!hasRequiredKeys) {
-      log('warn', 'Session data missing required WhatsApp keys');
-      return false;
-    }
-
-    const dataSize = JSON.stringify(sessionData).length;
-    if (dataSize < 1000) {
-      log('warn', `Session data too small: ${dataSize} bytes`);
-      return false;
-    }
-
-    return true;
-  }
-}
-
-// Enhanced session save function
-async function safelyTriggerSessionSave(client) {
-  if (!client) return false;
-  
-  try {
-    // Use direct localStorage extraction to get session data
-    const sessionData = await extractSessionData(client);
-    
-    if (sessionData) {
-      const sessionSize = JSON.stringify(sessionData).length;
-      log('info', `📥 Got session data to save (${sessionSize} bytes)`);
-      
-      // Validate session data
-      const supabaseStore = client.authStrategy?.store;
-      if (supabaseStore && typeof supabaseStore.validateSession === 'function') {
-        const isValid = await supabaseStore.validateSession(sessionData);
-        if (!isValid) {
-          log('warn', 'Session data validation failed');
-          return false;
-        }
-      }
-
-      // Save directly to Supabase store
-      if (supabaseStore && typeof supabaseStore.save === 'function') {
-        // Make sure client reference is set
-        supabaseStore.client = client;
-
-        // Save to Supabase
-        await supabaseStore.save({
-          session: `RemoteAuth-${SESSION_ID}`,
-          sessionData
-        });
-        log('info', '📥 Session saved to Supabase successfully');
-
-        // Extra: Create a backup copy of session data directly to file system
-        try {
-          const sessionDir = path.join(__dirname, `.wwebjs_auth/session-${SESSION_ID}`);
-          if (!fs.existsSync(sessionDir)) {
-            fs.mkdirSync(sessionDir, { recursive: true });
-          }
-
-          const backupFile = path.join(sessionDir, 'session_backup.json');
-          await fs.promises.writeFile(
-            backupFile,
-            JSON.stringify(sessionData, null, 2),
-            { encoding: 'utf8' }
-          );
-          log('info', '📥 Created additional filesystem backup of session');
-        } catch (backupErr) {
-          log('warn', `Failed to create filesystem backup: ${backupErr.message}`);
-        }
-        return true;
-      } else {
-        log('warn', 'No save method available on Supabase store');
-        return false;
-      }
-    } else {
-      log('warn', '❓ Could not find valid session data for saving');
-      return false;
-    }
-  } catch (err) {
-    log('error', `Failed to request session save: ${err.message}`);
-    return false;
-  }
-}
-
-const supabaseStore = new SupabaseStore(supabase, SESSION_ID);
+// --- Session Management ---
+// Using LocalAuth with persistent disk storage on Render
+// Session data stored in /opt/render/project/src/.wwebjs_auth/
+// No need for custom session extraction or SupabaseStore
+// LocalAuth handles all session persistence natively
 let client = null;
 let messageSendQueue = null;
 
 function createWhatsAppClient() {
   try {
-    // Ensure auth folder exists with proper structure
+    // Ensure auth folder exists for LocalAuth
     const authDir = path.join(__dirname, '.wwebjs_auth');
-    const sessionPath = path.join(authDir, `session-${SESSION_ID}`);
 
     // Persistent Chrome profile directory for consistent browser fingerprinting
     const chromeProfileDir = path.join(__dirname, '.wwebjs_chrome_profile');
@@ -972,52 +510,25 @@ function createWhatsAppClient() {
       log('info', `📁 Created auth directory: ${authDir}`);
     }
 
-    if (!fs.existsSync(sessionPath)) {
-      fs.mkdirSync(sessionPath, { recursive: true });
-      log('info', `📁 Created session directory: ${sessionPath}`);
-    }
-
     if (!fs.existsSync(chromeProfileDir)) {
       fs.mkdirSync(chromeProfileDir, { recursive: true });
       log('info', `📁 Created Chrome profile directory: ${chromeProfileDir}`);
     }
 
-    // Create RemoteAuth temp session directory structure to prevent ENOENT errors
-    const remoteAuthPath = path.join(authDir, `RemoteAuth-${SESSION_ID}`);
-    const tempSessionPath = path.join(authDir, `wwebjs_temp_session_${SESSION_ID}`);
-
-    // Ensure RemoteAuth directories exist
-    [remoteAuthPath, tempSessionPath].forEach(dirPath => {
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-        log('info', `📁 Created RemoteAuth directory: ${dirPath}`);
-
-        // Create Default subdirectory to prevent ENOENT during deleteMetadata
-        const defaultDir = path.join(dirPath, 'Default');
-        if (!fs.existsSync(defaultDir)) {
-          fs.mkdirSync(defaultDir, { recursive: true });
-          log('info', `📁 Created Default subdirectory: ${defaultDir}`);
-        }
-      }
-    });
-
-    // Add .gitkeep to ensure folder is tracked
+    // Add .gitkeep to ensure folder is tracked (optional for version control)
     const gitkeepPath = path.join(authDir, '.gitkeep');
     if (!fs.existsSync(gitkeepPath)) {
       fs.writeFileSync(gitkeepPath, '');
       log('info', 'Added .gitkeep to auth directory');
     }
 
-    log('info', `Using auth directory: ${authDir}`);
-    log('info', `Using session path: ${sessionPath}`);
+    log('info', `Using LocalAuth with session directory: ${authDir}`);
     log('info', `Using Chrome profile: ${chromeProfileDir}`);
 
     return new Client({
-      authStrategy: new RemoteAuth({
+      authStrategy: new LocalAuth({
         clientId: SESSION_ID,
-        store: supabaseStore,
-        backupSyncIntervalMs: 3600000, // 1 hour - minimum interference (RemoteAuth requires min 60000ms)
-        dataPath: authDir, // Use parent directory, not session-specific path
+        dataPath: authDir, // LocalAuth will create session-{SESSION_ID} subdirectory automatically
       }),
       puppeteer: {
         headless: true,
@@ -1109,11 +620,6 @@ function createWhatsAppClient() {
 }
 
 function setupClientEvents(c) {
-  // Set client reference in store
-  if (c.authStrategy && c.authStrategy.store) {
-    c.authStrategy.store.client = c;
-  }
-
   // Add error handler to prevent unhandled errors
   c.on('error', (error) => {
     log('error', `Client error: ${error.message}`);
@@ -1122,44 +628,9 @@ function setupClientEvents(c) {
     }
   });
 
-  // Inject localStorage from Supabase BEFORE WhatsApp connects
+  // LocalAuth handles session restoration automatically - no manual injection needed
   c.on('loading_screen', async (percent, message) => {
     log('debug', `Loading WhatsApp: ${percent}% - ${message}`);
-
-    // Only inject on first load (when percent is low)
-    if (percent < 30) {
-      try {
-        // Check if we have session data in Supabase
-        const sessionKey = `RemoteAuth-${SESSION_ID}`;
-        const { data, error } = await supabase
-          .from('whatsapp_sessions')
-          .select('session_data')
-          .eq('session_key', sessionKey)
-          .limit(1)
-          .single();
-
-        if (!error && data?.session_data) {
-          const sessionData = typeof data.session_data === 'string'
-            ? JSON.parse(data.session_data)
-            : data.session_data;
-
-          log('info', `📥 Found existing session in Supabase - injecting localStorage to restore session`);
-
-          // Inject localStorage data to avoid QR code
-          await c.pupPage.evaluate((storageData) => {
-            for (const [key, value] of Object.entries(storageData)) {
-              localStorage.setItem(key, value);
-            }
-          }, sessionData);
-
-          log('info', `✅ Injected ${Object.keys(sessionData).length} localStorage items - session should restore without QR`);
-        } else {
-          log('debug', `No existing session found - QR code will be required`);
-        }
-      } catch (err) {
-        log('warn', `Failed to inject localStorage: ${err.message} - QR code may be required`);
-      }
-    }
   });
 
   c.on('qr', async qr => {
@@ -1196,39 +667,8 @@ function setupClientEvents(c) {
     // Broadcast ready status to dashboard
     broadcastToClients({ type: 'ready', authenticated: true });
 
-    // Trigger session save after client is ready with human-like delay
-    const delay = humanBehavior.getRandomDelay(3000, 8000);
-    setTimeout(async () => {
-      try {
-        await safelyTriggerSessionSave(c);
-      } catch (err) {
-        log('warn', `Failed to save session after ready: ${err.message}`);
-      }
-    }, delay);
-
-    // Set up controlled periodic session saves (every 30 minutes) as safety net
-    // This replaces RemoteAuth's automatic backups with our compatible extraction method
-    const periodicSaveInterval = setInterval(async () => {
-      if (c && typeof c.getState === 'function') {
-        try {
-          const state = await c.getState();
-          if (state === 'CONNECTED') {
-            log('debug', '💾 Periodic session save starting (30min interval)');
-            await safelyTriggerSessionSave(c);
-          } else {
-            log('debug', `⏭️ Skipping periodic save - client state: ${state}`);
-          }
-        } catch (err) {
-          log('warn', `Periodic session save failed: ${err.message}`);
-        }
-      }
-    }, 30 * 60 * 1000); // 30 minutes
-
-    // Clean up interval on disconnect
-    c.once('disconnected', () => {
-      clearInterval(periodicSaveInterval);
-      log('debug', '🧹 Cleared periodic save interval');
-    });
+    // LocalAuth handles session persistence automatically - no manual saves needed
+    log('info', '💾 Session persisted by LocalAuth to disk');
   });
 
   c.on('authenticated', async () => {
@@ -1237,21 +677,15 @@ function setupClientEvents(c) {
     // Broadcast authenticating status to dashboard
     broadcastToClients({ type: 'authenticated', status: 'authenticating' });
 
-    // Note: Session save removed here to avoid duplicate with 'ready' event
-    // Session will be saved when 'ready' event fires (client fully initialized)
-  });
-
-  c.on('remote_session_saved', () => {
-    log('debug', '💾 RemoteAuth save attempt completed (check logs above for actual result)');
+    // LocalAuth handles session storage automatically
   });
 
   c.on('disconnected', async reason => {
     log('warn', `Client disconnected: ${reason}`);
-    
-    // Try to save session before destroying
+
+    // Clean up client
     if (client) {
       try {
-        await safelyTriggerSessionSave(client);
         await client.destroy();
       } catch (err) {
         log('error', `Error during disconnect cleanup: ${err.message}`);
@@ -1488,8 +922,6 @@ const gracefulShutdown = async (signal) => {
   
   if (client) {
     try {
-      log('info', 'Saving session before shutdown...');
-      await safelyTriggerSessionSave(client);
       log('info', 'Destroying WhatsApp client...');
       await client.destroy();
       log('info', 'WhatsApp client destroyed successfully');
@@ -1507,9 +939,9 @@ const gracefulShutdown = async (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('unhandledRejection', (reason, promise) => {
-  // Handle RemoteAuth ENOENT errors gracefully (expected on fresh deployments)
-  if (reason && reason.code === 'ENOENT' && reason.path && reason.path.includes('wwebjs_temp_session')) {
-    log('warn', `⚠️ RemoteAuth directory error (non-critical): ${reason.path}`);
+  // Handle LocalAuth ENOENT errors gracefully (expected on fresh deployments)
+  if (reason && reason.code === 'ENOENT' && reason.path && reason.path.includes('.wwebjs_auth')) {
+    log('warn', `⚠️ Session directory error (non-critical): ${reason.path}`);
     log('info', 'This is expected on first runs or when session directory is incomplete');
   } else {
     log('error', 'Unhandled Rejection at:', promise, 'reason:', reason);
@@ -1736,43 +1168,9 @@ app.post('/extract-session', async (req, res) => {
   }
 });
 
-app.delete('/clear-session', async (req, res) => {
-  try {
-    await supabaseStore.delete({ session: SESSION_ID });
-    res.status(200).json({ 
-      success: true, 
-      message: 'Session cleared from Supabase' 
-    });
-  } catch (err) {
-    res.status(500).json({ 
-      success: false, 
-      error: err.message 
-    });
-  }
-});
-
-// Manual session save endpoint
-app.post('/save-session', async (req, res) => {
-  try {
-    if (!client) {
-      return res.status(503).json({
-        success: false,
-        error: 'WhatsApp client not ready'
-      });
-    }
-
-    const success = await safelyTriggerSessionSave(client);
-    res.status(200).json({
-      success,
-      message: success ? 'Session saved successfully' : 'Failed to save session'
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
-  }
-});
+// Note: Session management endpoints removed - LocalAuth handles persistence automatically
+// Sessions are stored in persistent disk at .wwebjs_auth/ directory
+// No manual session save or clear needed
 
 // Production-ready logout endpoint with comprehensive cleanup
 app.post('/logout', async (req, res) => {
@@ -1782,8 +1180,6 @@ app.post('/logout', async (req, res) => {
     const cleanupResults = {
       clientLogout: false,
       clientDestroy: false,
-      supabaseSessionDelete: false,
-      supabaseBackupDelete: false,
       chromeProfileCleanup: false,
       localSessionCleanup: false,
       qrCodeCleared: false
@@ -1816,41 +1212,9 @@ app.post('/logout', async (req, res) => {
       log('warn', '⚠️ No active client to logout');
     }
 
-    // Step 3: Clear session from Supabase
+    // Step 3: Clear Chrome profile directory
     try {
-      log('info', '3️⃣ Deleting session from Supabase...');
-      const sessionKey = `RemoteAuth-${SESSION_ID}`;
-      // Pass the full RemoteAuth-prefixed key to delete the correct session
-      await supabaseStore.delete({ session: sessionKey });
-      cleanupResults.supabaseSessionDelete = true;
-      log('info', `✅ Session deleted: ${sessionKey}`);
-    } catch (supabaseErr) {
-      log('error', `❌ Supabase session delete failed: ${supabaseErr.message}`);
-    }
-
-    // Step 4: Clear backup session from Supabase
-    try {
-      log('info', '4️⃣ Deleting backup session from Supabase...');
-      const backupKey = `RemoteAuth-${SESSION_ID}_backup`;
-      const { error } = await supabase
-        .from('whatsapp_sessions')
-        .delete()
-        .eq('session_key', backupKey);
-
-      if (!error) {
-        cleanupResults.supabaseBackupDelete = true;
-        log('info', `✅ Backup session deleted: ${backupKey}`);
-      } else {
-        log('warn', `⚠️ Backup delete warning: ${error.message}`);
-      }
-    } catch (backupErr) {
-      log('warn', `⚠️ Backup session delete failed: ${backupErr.message}`);
-    }
-
-    // Step 5: Clear Chrome profile directory
-    try {
-      log('info', '5️⃣ Cleaning Chrome profile...');
-      // Use correct path - matches createWhatsAppClient() line 955
+      log('info', '3️⃣ Cleaning Chrome profile...');
       const chromeProfileDir = path.join(__dirname, '.wwebjs_chrome_profile');
 
       if (fs.existsSync(chromeProfileDir)) {
@@ -1865,45 +1229,29 @@ app.post('/logout', async (req, res) => {
       log('error', `❌ Chrome profile cleanup failed: ${chromeErr.message}`);
     }
 
-    // Step 6: Clear local session directory
+    // Step 4: Clear local session directory (LocalAuth storage)
     try {
-      log('info', '6️⃣ Cleaning local session directory...');
+      log('info', '4️⃣ Cleaning LocalAuth session directory...');
       const sessionPath = path.join(__dirname, `.wwebjs_auth/session-${SESSION_ID}`);
 
       if (fs.existsSync(sessionPath)) {
         fs.rmSync(sessionPath, { recursive: true, force: true });
-        log('info', '✅ Local session directory cleared');
+        log('info', '✅ LocalAuth session directory cleared');
         cleanupResults.localSessionCleanup = true;
       } else {
-        log('info', '✅ Local session already clean (not found)');
+        log('info', '✅ LocalAuth session already clean (not found)');
         cleanupResults.localSessionCleanup = true;
       }
     } catch (sessionErr) {
-      log('error', `❌ Local session cleanup failed: ${sessionErr.message}`);
+      log('error', `❌ LocalAuth session cleanup failed: ${sessionErr.message}`);
     }
 
-    // Step 7: Clear temporary session directories
-    try {
-      log('info', '7️⃣ Cleaning temporary session directories...');
-      const authDir = path.join(__dirname, '.wwebjs_auth');
-      const tempSessionPath = path.join(authDir, `wwebjs_temp_session_${SESSION_ID}`);
-
-      if (fs.existsSync(tempSessionPath)) {
-        fs.rmSync(tempSessionPath, { recursive: true, force: true });
-        log('info', '✅ Temporary session directory cleared');
-      } else {
-        log('info', '✅ Temporary session already clean (not found)');
-      }
-    } catch (tempErr) {
-      log('warn', `⚠️ Temporary session cleanup warning: ${tempErr.message}`);
-    }
-
-    // Step 8: Clear QR code from memory
+    // Step 5: Clear QR code from memory
     currentQRCode = null;
     cleanupResults.qrCodeCleared = true;
     log('info', '✅ QR code cleared from memory');
 
-    // Step 9: Broadcast logout status to all WebSocket clients
+    // Step 6: Broadcast logout status to all WebSocket clients
     try {
       broadcastToClients({
         type: 'logout',
@@ -1915,7 +1263,7 @@ app.post('/logout', async (req, res) => {
       log('warn', `⚠️ WebSocket broadcast failed: ${broadcastErr.message}`);
     }
 
-    // Step 10: Reset human behavior manager state
+    // Step 7: Reset human behavior manager state
     try {
       humanBehavior.client = null;
       humanBehavior.processedMessages.clear();
@@ -1930,7 +1278,7 @@ app.post('/logout', async (req, res) => {
 
     log('info', `🎉 Logout complete: ${successCount}/${totalSteps} cleanup steps successful`);
 
-    // Step 11: Wait for cleanup to settle, then restart client for new QR code
+    // Step 8: Wait for cleanup to settle, then restart client for new QR code
     setTimeout(async () => {
       try {
         log('info', '🔄 Restarting client to generate new QR code...');
@@ -3018,7 +2366,6 @@ const checkMemoryUsage = () => {
     if (client) {
       (async () => {
         try {
-          await safelyTriggerSessionSave(client);
           await client.destroy();
           client = null;
           log('warn', 'Client destroyed due to memory pressure');

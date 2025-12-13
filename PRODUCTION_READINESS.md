@@ -32,7 +32,7 @@ Your WhatsApp bot is **production-ready** with the following strengths:
 - [x] **Error handling implemented** (102 try/catch blocks)
 - [x] **Human behavior simulation** (rate limiting, active hours)
 - [x] **Message queue with priorities** (critical, high, normal, low)
-- [x] **Session persistence** (Supabase RemoteAuth)
+- [x] **Session persistence** (LocalAuth with persistent disk on Render)
 - [x] **Health check endpoint** (/health)
 
 #### Infrastructure

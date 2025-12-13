@@ -22,3 +22,10 @@ services:
     healthCheckTimeout: 5000    # 5 second timeout per check
     healthCheckUnhealthyThreshold: 3  # Allow 3 failures before marking unhealthy
     # This gives 90+ seconds for WhatsApp client to initialize without marking service unhealthy
+
+    # Persistent disk for LocalAuth session storage
+    # WhatsApp session data stored locally instead of Supabase
+    disk:
+      name: whatsapp-session-storage
+      mountPath: /opt/render/project/src/.wwebjs_auth
+      sizeGB: 1  # 1GB is sufficient for session data
