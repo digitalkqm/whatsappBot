@@ -2231,6 +2231,13 @@ app.get('/ping', (_, res) => {
 // Check for whatsapp-web.js updates (non-blocking)
 async function checkWhatsAppUpdates(currentVersion) {
   try {
+    // Skip npm registry check if using GitHub URL (bleeding edge)
+    if (currentVersion.includes('github:') || currentVersion.includes('git+')) {
+      log('info', `✅ WhatsApp Web.js: Using latest from GitHub main branch`);
+      log('info', `   Bleeding edge version - ahead of npm registry`);
+      return;
+    }
+
     const response = await axios.get('https://registry.npmjs.org/whatsapp-web.js/latest', {
       timeout: 5000
     });
@@ -2238,7 +2245,7 @@ async function checkWhatsAppUpdates(currentVersion) {
 
     if (latestVersion !== currentVersion) {
       log('warn', `⚠️ WhatsApp Web.js update available: ${currentVersion} → ${latestVersion}`);
-      log('warn', `   Run: npm run check-updates or npm run update-safe`);
+      log('warn', `   Run: npm run check-updates or npm run update-safe before deploying please check with me on this first`);
     } else {
       log('info', `✅ WhatsApp Web.js is up to date (${currentVersion})`);
     }
