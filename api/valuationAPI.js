@@ -17,7 +17,8 @@ class ValuationAPI {
     try {
       let query = this.supabase
         .from('valuation_requests')
-        .select(`
+        .select(
+          `
           *,
           bankers (
             id,
@@ -27,7 +28,8 @@ class ValuationAPI {
             agent_number,
             whatsapp_group_name
           )
-        `)
+        `
+        )
         .order('created_at', { ascending: false });
 
       // Apply filters
@@ -48,7 +50,9 @@ class ValuationAPI {
       }
 
       if (filters.search) {
-        query = query.or(`address.ilike.%${filters.search}%,salesperson_name.ilike.%${filters.search}%`);
+        query = query.or(
+          `address.ilike.%${filters.search}%,salesperson_name.ilike.%${filters.search}%`
+        );
       }
 
       if (filters.limit) {
@@ -62,13 +66,13 @@ class ValuationAPI {
       return {
         success: true,
         data: data || [],
-        count: data?.length || 0,
+        count: data?.length || 0
       };
     } catch (error) {
       console.error('Error fetching valuations:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -80,7 +84,8 @@ class ValuationAPI {
     try {
       const { data, error } = await this.supabase
         .from('valuation_requests')
-        .select(`
+        .select(
+          `
           *,
           bankers (
             id,
@@ -90,7 +95,8 @@ class ValuationAPI {
             agent_number,
             whatsapp_group_name
           )
-        `)
+        `
+        )
         .eq('id', id)
         .single();
 
@@ -98,13 +104,13 @@ class ValuationAPI {
 
       return {
         success: true,
-        data,
+        data
       };
     } catch (error) {
       console.error('Error fetching valuation:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -118,7 +124,7 @@ class ValuationAPI {
         .from('valuation_requests')
         .update({
           ...updates,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .eq('id', id)
         .select()
@@ -128,13 +134,13 @@ class ValuationAPI {
 
       return {
         success: true,
-        data,
+        data
       };
     } catch (error) {
       console.error('Error updating valuation:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -144,22 +150,19 @@ class ValuationAPI {
    */
   async deleteValuation(id) {
     try {
-      const { error } = await this.supabase
-        .from('valuation_requests')
-        .delete()
-        .eq('id', id);
+      const { error } = await this.supabase.from('valuation_requests').delete().eq('id', id);
 
       if (error) throw error;
 
       return {
         success: true,
-        message: 'Valuation deleted successfully',
+        message: 'Valuation deleted successfully'
       };
     } catch (error) {
       console.error('Error deleting valuation:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -169,9 +172,7 @@ class ValuationAPI {
    */
   async getStatistics(filters = {}) {
     try {
-      let query = this.supabase
-        .from('valuation_requests')
-        .select('status, banker_id, created_at');
+      let query = this.supabase.from('valuation_requests').select('status, banker_id, created_at');
 
       if (filters.date_from) {
         query = query.gte('created_at', filters.date_from);
@@ -189,7 +190,7 @@ class ValuationAPI {
         total: data.length,
         by_status: {},
         by_banker: {},
-        completion_rate: 0,
+        completion_rate: 0
       };
 
       // Calculate statistics
@@ -209,13 +210,13 @@ class ValuationAPI {
 
       return {
         success: true,
-        data: stats,
+        data: stats
       };
     } catch (error) {
       console.error('Error fetching statistics:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -236,7 +237,7 @@ class ValuationAPI {
       if (data.length === 0) {
         return {
           success: true,
-          csv: 'No data to export',
+          csv: 'No data to export'
         };
       }
 
@@ -255,7 +256,7 @@ class ValuationAPI {
         'Forwarded',
         'Acknowledged',
         'Replied',
-        'Completed',
+        'Completed'
       ];
 
       // Generate CSV rows
@@ -273,25 +274,25 @@ class ValuationAPI {
         val.forwarded_to_banker ? 'Yes' : 'No',
         val.acknowledgment_sent ? 'Yes' : 'No',
         val.banker_replied_at ? 'Yes' : 'No',
-        val.completed_at ? 'Yes' : 'No',
+        val.completed_at ? 'Yes' : 'No'
       ]);
 
       // Combine headers and rows
       const csv = [
         headers.join(','),
-        ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
       ].join('\n');
 
       return {
         success: true,
         csv,
-        filename: `valuations_export_${new Date().toISOString().split('T')[0]}.csv`,
+        filename: `valuations_export_${new Date().toISOString().split('T')[0]}.csv`
       };
     } catch (error) {
       console.error('Error exporting to CSV:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }

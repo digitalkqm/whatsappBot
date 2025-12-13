@@ -38,26 +38,26 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 // --- Human-like Behavior Configuration ---
 const HUMAN_CONFIG = {
   // Random delays (in milliseconds)
-  MIN_READ_DELAY: 2000,        // Minimum time before "reading" a message
-  MAX_READ_DELAY: 15000,       // Maximum time before "reading" a message
-  MIN_RESPONSE_DELAY: 1000,    // Minimum time before processing/responding
-  MAX_RESPONSE_DELAY: 10000,   // Maximum time before processing/responding
-  MIN_TYPING_DURATION: 1000,   // Minimum typing indicator duration
-  MAX_TYPING_DURATION: 5000,   // Maximum typing indicator duration
+  MIN_READ_DELAY: 2000, // Minimum time before "reading" a message
+  MAX_READ_DELAY: 15000, // Maximum time before "reading" a message
+  MIN_RESPONSE_DELAY: 1000, // Minimum time before processing/responding
+  MAX_RESPONSE_DELAY: 10000, // Maximum time before processing/responding
+  MIN_TYPING_DURATION: 1000, // Minimum typing indicator duration
+  MAX_TYPING_DURATION: 5000, // Maximum typing indicator duration
 
   // Rate limiting
-  MAX_MESSAGES_PER_HOUR: 80,   // Maximum messages to process per hour
-  MAX_MESSAGES_PER_DAY: 500,   // Maximum messages to process per day
+  MAX_MESSAGES_PER_HOUR: 80, // Maximum messages to process per hour
+  MAX_MESSAGES_PER_DAY: 500, // Maximum messages to process per day
   COOLDOWN_BETWEEN_ACTIONS: 250, // Minimum time between any actions
 
   // Activity patterns (24-hour format)
-  ACTIVE_HOURS_START: 7,       // Start being active at 7 AM (randomized daily)
-  ACTIVE_HOURS_END: 23,        // Stop being active at 11 PM (randomized daily)
-  ACTIVE_HOURS_VARIATION: 1,   // ±1 hour random variation daily
+  ACTIVE_HOURS_START: 7, // Start being active at 7 AM (randomized daily)
+  ACTIVE_HOURS_END: 23, // Stop being active at 11 PM (randomized daily)
+  ACTIVE_HOURS_VARIATION: 1, // ±1 hour random variation daily
   SLEEP_MODE_DELAY_MULTIPLIER: 5, // Multiply delays during sleep hours
 
   // Message patterns
-  IGNORE_PROBABILITY: 0,       // Message ignoring disabled per user request
+  IGNORE_PROBABILITY: 0, // Message ignoring disabled per user request
   DOUBLE_CHECK_PROBABILITY: 0.1, // 10% chance to re-read a message
   // Weekend/weekday patterns
   WEEKEND_DELAY_MULTIPLIER: 1.5, // 50% slower on weekends
@@ -68,7 +68,7 @@ const HUMAN_CONFIG = {
   NETWORK_DELAY_MAX: 10000, // 10 seconds maximum network delay
 
   // Response quality variation
-  BRIEF_RESPONSE_PROBABILITY: 0.1, // 10% chance of brief response
+  BRIEF_RESPONSE_PROBABILITY: 0.1 // 10% chance of brief response
 };
 
 // --- Human Behavior Tracking ---
@@ -103,7 +103,10 @@ class HumanBehaviorManager {
     if (currentDay !== this.lastActiveHoursUpdate) {
       this.dailyActiveHours = this.getRandomizedActiveHours();
       this.lastActiveHoursUpdate = currentDay;
-      log('debug', `🕐 Daily active hours updated: ${this.dailyActiveHours.start}:00 - ${this.dailyActiveHours.end}:00`);
+      log(
+        'debug',
+        `🕐 Daily active hours updated: ${this.dailyActiveHours.start}:00 - ${this.dailyActiveHours.end}:00`
+      );
     }
   }
 
@@ -118,23 +121,24 @@ class HumanBehaviorManager {
   // Get weekend multiplier
   getWeekendMultiplier() {
     const day = new Date().getDay();
-    return (day === 0 || day === 6) ? HUMAN_CONFIG.WEEKEND_DELAY_MULTIPLIER : 1.0;
+    return day === 0 || day === 6 ? HUMAN_CONFIG.WEEKEND_DELAY_MULTIPLIER : 1.0;
   }
 
   // Get day progress multiplier (slower as day progresses)
   getDayProgressMultiplier() {
     const hour = new Date().getHours();
-    if (hour < 10) return 1.0;  // Morning: normal speed
-    if (hour < 14) return 1.2;  // Lunch: slower
-    if (hour < 18) return 1.0;  // Afternoon: normal
-    return 1.5;                 // Evening: slower (tired)
+    if (hour < 10) return 1.0; // Morning: normal speed
+    if (hour < 14) return 1.2; // Lunch: slower
+    if (hour < 18) return 1.0; // Afternoon: normal
+    return 1.5; // Evening: slower (tired)
   }
 
   // Simulate network variability
   async simulateNetworkVariability() {
     if (Math.random() < HUMAN_CONFIG.NETWORK_DELAY_PROBABILITY) {
-      const delay = HUMAN_CONFIG.NETWORK_DELAY_MIN +
-                    Math.random() * (HUMAN_CONFIG.NETWORK_DELAY_MAX - HUMAN_CONFIG.NETWORK_DELAY_MIN);
+      const delay =
+        HUMAN_CONFIG.NETWORK_DELAY_MIN +
+        Math.random() * (HUMAN_CONFIG.NETWORK_DELAY_MAX - HUMAN_CONFIG.NETWORK_DELAY_MIN);
       await this.sleep(delay);
       log('debug', `🌐 Simulated network delay: ${Math.round(delay)}ms`);
     }
@@ -166,7 +170,7 @@ class HumanBehaviorManager {
   // Reset counters when needed
   resetCountersIfNeeded() {
     const now = Date.now();
-    
+
     // Reset hourly counter
     if (now - this.lastHourReset > 60 * 60 * 1000) {
       this.messageCount.hourly = 0;
@@ -211,9 +215,11 @@ class HumanBehaviorManager {
     try {
       let message = '';
       if (reason === 'hourly_limit') {
-        message = '⏱️ *Rate Limit Reached*\n\nThe bot has reached its hourly message limit (80 messages/hour).\n\nPlease wait for the next hour to continue processing valuation requests.';
+        message =
+          '⏱️ *Rate Limit Reached*\n\nThe bot has reached its hourly message limit (80 messages/hour).\n\nPlease wait for the next hour to continue processing valuation requests.';
       } else if (reason === 'daily_limit') {
-        message = '📅 *Daily Rate Limit Reached*\n\nThe bot has reached its daily message limit (500 messages/day).\n\nProcessing will resume tomorrow. Thank you for your patience!';
+        message =
+          '📅 *Daily Rate Limit Reached*\n\nThe bot has reached its daily message limit (500 messages/day).\n\nProcessing will resume tomorrow. Thank you for your patience!';
       } else {
         return; // Don't send notification for cooldown
       }
@@ -249,7 +255,8 @@ class HumanBehaviorManager {
     this.messageQueue.push({
       ...messageData,
       addedAt: Date.now(),
-      processAt: Date.now() + this.getRandomDelay(HUMAN_CONFIG.MIN_READ_DELAY, HUMAN_CONFIG.MAX_READ_DELAY)
+      processAt:
+        Date.now() + this.getRandomDelay(HUMAN_CONFIG.MIN_READ_DELAY, HUMAN_CONFIG.MAX_READ_DELAY)
     });
 
     if (!this.isProcessingQueue) {
@@ -343,9 +350,12 @@ class HumanBehaviorManager {
   async simulateReadingMessage(msg) {
     try {
       // Random delay before marking as read
-      const readDelay = this.getRandomDelay(HUMAN_CONFIG.MIN_READ_DELAY, HUMAN_CONFIG.MAX_READ_DELAY);
+      const readDelay = this.getRandomDelay(
+        HUMAN_CONFIG.MIN_READ_DELAY,
+        HUMAN_CONFIG.MAX_READ_DELAY
+      );
       await this.sleep(readDelay);
-      
+
       // Mark message as read (if supported)
       if (msg && typeof msg.markAsRead === 'function') {
         await msg.markAsRead();
@@ -386,7 +396,10 @@ class HumanBehaviorManager {
         await workflowEngine.executeWorkflow('bank_rates_update', payload);
       }
     } catch (error) {
-      log('error', `Workflow execution failed: ${error.message}${payload.groupId ? ` [Group: ${payload.groupId}]` : ''}`);
+      log(
+        'error',
+        `Workflow execution failed: ${error.message}${payload.groupId ? ` [Group: ${payload.groupId}]` : ''}`
+      );
       throw error;
     }
   }
@@ -403,7 +416,7 @@ class HumanBehaviorManager {
       queueLength: this.messageQueue.length,
       isProcessingQueue: this.isProcessingQueue,
       isActiveHours: this.isActiveHours(),
-      lastAction: new Date(this.lastAction).toISOString(),
+      lastAction: new Date(this.lastAction).toISOString()
     };
   }
 }
@@ -435,7 +448,11 @@ const bankerAPI = new BankerAPI(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Initialize ImageKit API for image uploads
 let imageUploadAPI = null;
-if (process.env.IMAGEKIT_PUBLIC_KEY && process.env.IMAGEKIT_PRIVATE_KEY && process.env.IMAGEKIT_URL_ENDPOINT) {
+if (
+  process.env.IMAGEKIT_PUBLIC_KEY &&
+  process.env.IMAGEKIT_PRIVATE_KEY &&
+  process.env.IMAGEKIT_URL_ENDPOINT
+) {
   try {
     imageUploadAPI = new ImageUploadAPI(
       process.env.IMAGEKIT_PUBLIC_KEY,
@@ -454,7 +471,7 @@ if (process.env.IMAGEKIT_PUBLIC_KEY && process.env.IMAGEKIT_PRIVATE_KEY && proce
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB max file size
+    fileSize: 5 * 1024 * 1024 // 5MB max file size
   },
   fileFilter: (req, file, cb) => {
     // Accept only image files
@@ -528,7 +545,7 @@ function createWhatsAppClient() {
     return new Client({
       authStrategy: new LocalAuth({
         clientId: SESSION_ID,
-        dataPath: authDir, // LocalAuth will create session-{SESSION_ID} subdirectory automatically
+        dataPath: authDir // LocalAuth will create session-{SESSION_ID} subdirectory automatically
       }),
       puppeteer: {
         headless: true,
@@ -554,14 +571,14 @@ function createWhatsAppClient() {
           // ========================================
           // MEMORY OPTIMIZATION FLAGS (CRITICAL FOR 512MB LIMIT)
           // ========================================
-          '--disable-dev-shm-usage',           // Prevents /dev/shm issues in Docker/low-memory
-          '--disable-accelerated-2d-canvas',   // Reduces GPU usage
-          '--disable-gpu',                     // Server environments don't need GPU
-          '--no-sandbox',                      // Required for Render.com deployment
-          '--disable-setuid-sandbox',          // Required for Render.com deployment
+          '--disable-dev-shm-usage', // Prevents /dev/shm issues in Docker/low-memory
+          '--disable-accelerated-2d-canvas', // Reduces GPU usage
+          '--disable-gpu', // Server environments don't need GPU
+          '--no-sandbox', // Required for Render.com deployment
+          '--disable-setuid-sandbox', // Required for Render.com deployment
 
           // Aggressive memory limits for 512MB Render free tier
-          '--js-flags=--max-old-space-size=256',  // Reduced from 512MB to 256MB
+          '--js-flags=--max-old-space-size=256', // Reduced from 512MB to 256MB
           '--disable-software-rasterizer',
           '--disable-canvas-aa',
           '--disable-3d-apis',
@@ -597,9 +614,9 @@ function createWhatsAppClient() {
 
           // Language & locale (natural for English users)
           '--lang=en-US',
-          '--accept-lang=en-US,en;q=0.9',
+          '--accept-lang=en-US,en;q=0.9'
         ],
-        timeout: 120000,
+        timeout: 120000
 
         // Use puppeteer-extra with stealth plugin instead of default puppeteer
         // This is set globally at the top of the file, so whatsapp-web.js will use it
@@ -610,8 +627,9 @@ function createWhatsAppClient() {
       // Use stable WhatsApp Web version to avoid breaking changes
       webVersionCache: {
         type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-      },
+        remotePath:
+          'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+      }
     });
   } catch (err) {
     log('error', `Failed to create WhatsApp client: ${err.message}`);
@@ -621,7 +639,7 @@ function createWhatsAppClient() {
 
 function setupClientEvents(c) {
   // Add error handler to prevent unhandled errors
-  c.on('error', (error) => {
+  c.on('error', error => {
     log('error', `Client error: ${error.message}`);
     if (error.stack) {
       log('debug', `Stack trace: ${error.stack}`);
@@ -692,17 +710,17 @@ function setupClientEvents(c) {
       }
       client = null;
     }
-    
+
     // Exponential backoff for reconnection with human-like randomness
     const attemptReconnection = (attempt = 1) => {
       const baseDelay = Math.min(Math.pow(2, attempt) * 1000, 60000);
-      const randomDelay = baseDelay + (Math.random() * 10000); // Add up to 10s randomness
-      log('info', `Will attempt reconnection (#${attempt}) in ${randomDelay/1000} seconds`);
-      
+      const randomDelay = baseDelay + Math.random() * 10000; // Add up to 10s randomness
+      log('info', `Will attempt reconnection (#${attempt}) in ${randomDelay / 1000} seconds`);
+
       setTimeout(async () => {
         try {
           await startClient();
-          
+
           const state = await client?.getState();
           if (!client || state !== 'CONNECTED') {
             log('warn', `Reconnection attempt #${attempt} failed. State: ${state || 'No client'}`);
@@ -716,7 +734,7 @@ function setupClientEvents(c) {
         }
       }, randomDelay);
     };
-    
+
     attemptReconnection();
   });
 
@@ -726,7 +744,7 @@ function setupClientEvents(c) {
       await supabaseStore.delete({ session: SESSION_ID });
       log('info', 'Session deleted. Will attempt to reinitialize...');
       client = null;
-      
+
       // Add human-like delay before restart
       const delay = humanBehavior.getRandomDelay(8000, 15000);
       setTimeout(startClient, delay);
@@ -770,7 +788,7 @@ async function handleIncomingMessage(msg) {
       hasReply = true;
       replyInfo = {
         message_id: quoted?.id?.id || quoted?.id?._serialized || null,
-        text: quoted?.body || null,
+        text: quoted?.body || null
       };
     }
   } catch (err) {
@@ -789,7 +807,13 @@ async function handleIncomingMessage(msg) {
   const isRatePackageUpdate = text.toLowerCase().includes('rate package update:');
 
   // Skip if message doesn't match any trigger conditions
-  if (!isValuationRequest && !isValuationReply && !isInterestRateMessage && !isBankRatesUpdateMessage && !isRatePackageUpdate) {
+  if (
+    !isValuationRequest &&
+    !isValuationReply &&
+    !isInterestRateMessage &&
+    !isBankRatesUpdateMessage &&
+    !isRatePackageUpdate
+  ) {
     log('info', `🚫 Ignored message - no trigger keywords found [Group: ${groupId}]`);
     return;
   }
@@ -824,7 +848,10 @@ async function handleIncomingMessage(msg) {
     log('info', `🧠 Memory usage — RSS: ${rssMB} MB, Heap: ${heapMB} MB`);
 
     if (parseFloat(rssMB) > 300) {
-      log('warn', '⚠️ RSS memory usage above 300MB. Consider restarting or increasing instance size.');
+      log(
+        'warn',
+        '⚠️ RSS memory usage above 300MB. Consider restarting or increasing instance size.'
+      );
     }
   }
 
@@ -850,12 +877,15 @@ async function handleIncomingMessage(msg) {
     hasReply,
     replyInfo,
     messageType,
-    timestamp: new Date(msg.timestamp * 1000).toISOString(),
+    timestamp: new Date(msg.timestamp * 1000).toISOString()
   };
 
   // Add message to human behavior queue instead of processing immediately
   humanBehavior.addToQueue({ msg, payload });
-  log('info', `📝 Message added to processing queue with human-like timing [Group: ${groupId}] [Type: ${messageType}]`);
+  log(
+    'info',
+    `📝 Message added to processing queue with human-like timing [Group: ${groupId}] [Type: ${messageType}]`
+  );
 }
 
 async function startClient() {
@@ -866,7 +896,7 @@ async function startClient() {
 
   log('info', '🚀 Starting WhatsApp client...');
   client = createWhatsAppClient();
-  
+
   if (!client) {
     log('error', '❌ Failed to create WhatsApp client');
     return;
@@ -878,31 +908,36 @@ async function startClient() {
   // QR code will be emitted via 'qr' event, authentication via 'ready' event
   log('info', '⏳ Initializing WhatsApp client in background...');
 
-  client.initialize().then(() => {
-    log('info', '✅ WhatsApp client initialized successfully.');
+  client
+    .initialize()
+    .then(() => {
+      log('info', '✅ WhatsApp client initialized successfully.');
 
-    // Initialize message send queue after successful init
-    if (!messageSendQueue) {
-      messageSendQueue = new MessageSendQueue(client);
-      log('info', '📬 Message send queue initialized with priority system');
-    }
+      // Initialize message send queue after successful init
+      if (!messageSendQueue) {
+        messageSendQueue = new MessageSendQueue(client);
+        log('info', '📬 Message send queue initialized with priority system');
+      }
 
-    // Set client on workflow engine after initialization
-    workflowEngine.setClient(client);
-    workflowEngine.setMessageQueue(messageSendQueue);
-  }).catch(err => {
-    log('error', `❌ WhatsApp client initialization failed: ${err.message}`);
+      // Set client on workflow engine after initialization
+      workflowEngine.setClient(client);
+      workflowEngine.setMessageQueue(messageSendQueue);
+    })
+    .catch(err => {
+      log('error', `❌ WhatsApp client initialization failed: ${err.message}`);
 
-    // Only nullify client on non-timeout errors
-    if (!err.message.includes('Execution context was destroyed') &&
-        !err.message.includes('timeout')) {
-      client = null;
-      workflowEngine.setClient(null);
-      log('error', '🔄 Client set to null - will retry on next startClient() call');
-    } else {
-      log('warn', '⚠️ Client initialization issue - keeping client for QR scan');
-    }
-  });
+      // Only nullify client on non-timeout errors
+      if (
+        !err.message.includes('Execution context was destroyed') &&
+        !err.message.includes('timeout')
+      ) {
+        client = null;
+        workflowEngine.setClient(null);
+        log('error', '🔄 Client set to null - will retry on next startClient() call');
+      } else {
+        log('warn', '⚠️ Client initialization issue - keeping client for QR scan');
+      }
+    });
 }
 
 // Express App Setup
@@ -913,13 +948,13 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Graceful shutdown handling
-const gracefulShutdown = async (signal) => {
+const gracefulShutdown = async signal => {
   log('warn', `Received ${signal}. Shutting down gracefully...`);
-  
+
   server.close(() => {
     log('info', 'HTTP server closed');
   });
-  
+
   if (client) {
     try {
       log('info', 'Destroying WhatsApp client...');
@@ -929,7 +964,7 @@ const gracefulShutdown = async (signal) => {
       log('error', `Error destroying client: ${err.message}`);
     }
   }
-  
+
   setTimeout(() => {
     log('info', 'Exiting process...');
     process.exit(0);
@@ -973,7 +1008,7 @@ app.get('/api/status', (_, res) => {
     version: BOT_VERSION,
     uptimeMinutes: Math.floor((Date.now() - startedAt) / 60000),
     humanBehavior: humanBehavior.getStatus(),
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -1067,7 +1102,7 @@ app.post('/send-message', async (req, res) => {
 
   try {
     let formattedId = targetId;
-    
+
     // Format ID based on type (group or individual)
     if (targetId.includes('@g.us')) {
       // Already a group ID
@@ -1119,19 +1154,18 @@ app.post('/send-message', async (req, res) => {
 
     // Return original WhatsApp message ID format
     const messageId = sentMessage.id?.id || sentMessage.id?._serialized || sentMessage.id;
-    
-    return res.status(200).json({ 
-      success: true, 
+
+    return res.status(200).json({
+      success: true,
       messageId: messageId,
       target: formattedId,
       type: imageUrl ? 'media' : 'text'
     });
-
   } catch (err) {
     log('error', `Failed to send message: ${err.message}`);
-    return res.status(500).json({ 
-      success: false, 
-      error: err.message 
+    return res.status(500).json({
+      success: false,
+      error: err.message
     });
   }
 });
@@ -1140,7 +1174,7 @@ app.post('/send-message', async (req, res) => {
 app.post('/extract-session', async (req, res) => {
   try {
     let success = false;
-    
+
     // Try to extract from live client first
     if (client) {
       const extractedData = await extractSessionData(client);
@@ -1150,20 +1184,20 @@ app.post('/extract-session', async (req, res) => {
         log('info', 'Live session data extracted and saved');
       }
     }
-    
+
     // Fallback to local files if live extraction failed
     if (!success) {
       success = await supabaseStore.extractLocalSession();
     }
-    
-    res.status(200).json({ 
-      success, 
-      message: success ? 'Session extracted and saved to Supabase' : 'No valid session found' 
+
+    res.status(200).json({
+      success,
+      message: success ? 'Session extracted and saved to Supabase' : 'No valid session found'
     });
   } catch (err) {
-    res.status(500).json({ 
-      success: false, 
-      error: err.message 
+    res.status(500).json({
+      success: false,
+      error: err.message
     });
   }
 });
@@ -1306,7 +1340,6 @@ app.post('/logout', async (req, res) => {
       summary: `${successCount}/${totalSteps} cleanup steps completed`,
       ready_for_new_login: true
     });
-
   } catch (err) {
     log('error', `❌ Logout process failed: ${err.message}`);
     res.status(500).json({
@@ -1338,7 +1371,8 @@ app.post('/api/workflows/create', async (req, res) => {
 
 app.get('/api/workflows/list', async (req, res) => {
   const filters = {
-    is_active: req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined,
+    is_active:
+      req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined,
     trigger_type: req.query.trigger_type
   };
   const result = await workflowAPI.getWorkflows(filters);
@@ -1579,11 +1613,14 @@ async function sendBroadcastNotification(phoneNumber, summary) {
     notificationMessage += `Completed at: ${summary.completed_at}`;
 
     // Send via internal API with critical priority to bypass rate limiting
-    const response = await axios.post(`${process.env.APP_URL || 'http://localhost:3000'}/send-message`, {
-      jid,
-      message: notificationMessage,
-      priority: 'critical'
-    });
+    const response = await axios.post(
+      `${process.env.APP_URL || 'http://localhost:3000'}/send-message`,
+      {
+        jid,
+        message: notificationMessage,
+        priority: 'critical'
+      }
+    );
 
     if (response.status === 200) {
       log('info', `✅ Notification sent to ${phoneNumber}`);
@@ -1641,7 +1678,6 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
         error: result.error
       });
     }
-
   } catch (error) {
     log('error', `❌ Image upload error: ${error.message}`);
     return res.status(500).json({
@@ -1653,7 +1689,8 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
 
 // Send interest rate broadcast to selected contacts
 app.post('/api/broadcast/interest-rate', async (req, res) => {
-  let { contacts, message, image_url, batch_size, delay_between_messages, notification_contact } = req.body;
+  let { contacts, message, image_url, batch_size, delay_between_messages, notification_contact } =
+    req.body;
 
   if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
     return res.status(400).json({ success: false, error: 'No contacts provided' });
@@ -1711,9 +1748,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       send_order: index + 1
     }));
 
-    const { error: msgError } = await supabase
-      .from('broadcast_messages')
-      .insert(messageRecords);
+    const { error: msgError } = await supabase.from('broadcast_messages').insert(messageRecords);
 
     if (msgError) {
       log('error', `❌ Failed to create message records: ${msgError.message}`);
@@ -1727,91 +1762,12 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       let lastSentContact = null; // Track the last successfully sent contact
 
       try {
-        log('info', `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay: ${delayMs}ms)`);
+        log(
+          'info',
+          `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay: ${delayMs}ms)`
+        );
 
-      // Emit initial status via WebSocket
-      broadcastToClients({
-        type: 'broadcast_status',
-        data: {
-          broadcast_id: broadcastId,
-          execution_id: execution.id,
-          status: 'running',
-          total: contacts.length,
-          sent: 0,
-          failed: 0,
-          current_index: 0,
-          progress: 0
-        }
-      });
-
-      for (let i = 0; i < contacts.length; i++) {
-        const contact = contacts[i];
-        let messageStatus = 'failed';
-        let errorMessage = null;
-
-        try {
-          // Replace {name} placeholder with actual contact name
-          const personalizedMessage = message.replace(/{name}/g, contact.name || 'Valued Customer');
-
-          // Format phone number for WhatsApp (e.g., 6591234567@c.us)
-          const jid = contact.phone.includes('@') ? contact.phone : `${contact.phone}@c.us`;
-
-          // Update message status to 'sending'
-          await supabase
-            .from('broadcast_messages')
-            .update({ status: 'sending' })
-            .eq('execution_id', execution.id)
-            .eq('contact_id', contact.id);
-
-          // Send message via internal API with low priority (broadcasts are bulk operations)
-          const response = await axios.post(`${process.env.APP_URL || 'http://localhost:3000'}/send-message`, {
-            jid,
-            message: personalizedMessage,
-            imageUrl: image_url || null,
-            priority: 'low'  // Low priority for broadcast messages
-          });
-
-          if (response.status === 200) {
-            successCount++;
-            messageStatus = 'sent';
-            lastSentContact = { name: contact.name, phone: contact.phone }; // Track last sent contact
-            log('info', `✅ Sent to ${contact.name} (${contact.phone}) [${successCount}/${contacts.length}]`);
-          } else {
-            failedCount++;
-            errorMessage = 'Failed to send message';
-            log('error', `❌ Failed to send to ${contact.name} (${contact.phone})`);
-          }
-
-        } catch (error) {
-          failedCount++;
-          errorMessage = error.message;
-          log('error', `❌ Error sending to ${contact.name}: ${error.message}`);
-        }
-
-        // Update message record with result
-        await supabase
-          .from('broadcast_messages')
-          .update({
-            status: messageStatus,
-            sent_at: messageStatus === 'sent' ? new Date().toISOString() : null,
-            error_message: errorMessage
-          })
-          .eq('execution_id', execution.id)
-          .eq('contact_id', contact.id);
-
-        // Update broadcast execution progress
-        const progress = Math.round(((i + 1) / contacts.length) * 100);
-        await supabase
-          .from('broadcast_executions')
-          .update({
-            current_index: i + 1,
-            sent_count: successCount,
-            failed_count: failedCount,
-            last_sent_at: new Date().toISOString()
-          })
-          .eq('id', execution.id);
-
-        // Emit progress update via WebSocket
+        // Emit initial status via WebSocket
         broadcastToClients({
           type: 'broadcast_status',
           data: {
@@ -1819,65 +1775,152 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             execution_id: execution.id,
             status: 'running',
             total: contacts.length,
-            sent: successCount,
-            failed: failedCount,
-            current_index: i + 1,
-            progress: progress,
-            current_contact: {
-              id: contact.id,
-              name: contact.name,
-              phone: contact.phone,
-              status: messageStatus
-            }
+            sent: 0,
+            failed: 0,
+            current_index: 0,
+            progress: 0
           }
         });
 
-        // Wait between messages (except for last message)
-        if (i < contacts.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-      }
+        for (let i = 0; i < contacts.length; i++) {
+          const contact = contacts[i];
+          let messageStatus = 'failed';
+          let errorMessage = null;
 
-      // Mark broadcast as completed
-      await supabase
-        .from('broadcast_executions')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', execution.id);
+          try {
+            // Replace {name} placeholder with actual contact name
+            const personalizedMessage = message.replace(
+              /{name}/g,
+              contact.name || 'Valued Customer'
+            );
 
-      // Emit completion status via WebSocket
-      broadcastToClients({
-        type: 'broadcast_status',
-        data: {
-          broadcast_id: broadcastId,
-          execution_id: execution.id,
-          status: 'completed',
-          total: contacts.length,
-          sent: successCount,
-          failed: failedCount,
-          current_index: contacts.length,
-          progress: 100
-        }
-      });
+            // Format phone number for WhatsApp (e.g., 6591234567@c.us)
+            const jid = contact.phone.includes('@') ? contact.phone : `${contact.phone}@c.us`;
 
-      log('info', `📊 Broadcast complete: ${successCount} sent, ${failedCount} failed`);
+            // Update message status to 'sending'
+            await supabase
+              .from('broadcast_messages')
+              .update({ status: 'sending' })
+              .eq('execution_id', execution.id)
+              .eq('contact_id', contact.id);
 
-        // Send notification to notification contact if provided
-        if (execution.notification_contact) {
-          await sendBroadcastNotification(
-            execution.notification_contact,
-            {
-              status: 'completed',
+            // Send message via internal API with low priority (broadcasts are bulk operations)
+            const response = await axios.post(
+              `${process.env.APP_URL || 'http://localhost:3000'}/send-message`,
+              {
+                jid,
+                message: personalizedMessage,
+                imageUrl: image_url || null,
+                priority: 'low' // Low priority for broadcast messages
+              }
+            );
+
+            if (response.status === 200) {
+              successCount++;
+              messageStatus = 'sent';
+              lastSentContact = { name: contact.name, phone: contact.phone }; // Track last sent contact
+              log(
+                'info',
+                `✅ Sent to ${contact.name} (${contact.phone}) [${successCount}/${contacts.length}]`
+              );
+            } else {
+              failedCount++;
+              errorMessage = 'Failed to send message';
+              log('error', `❌ Failed to send to ${contact.name} (${contact.phone})`);
+            }
+          } catch (error) {
+            failedCount++;
+            errorMessage = error.message;
+            log('error', `❌ Error sending to ${contact.name}: ${error.message}`);
+          }
+
+          // Update message record with result
+          await supabase
+            .from('broadcast_messages')
+            .update({
+              status: messageStatus,
+              sent_at: messageStatus === 'sent' ? new Date().toISOString() : null,
+              error_message: errorMessage
+            })
+            .eq('execution_id', execution.id)
+            .eq('contact_id', contact.id);
+
+          // Update broadcast execution progress
+          const progress = Math.round(((i + 1) / contacts.length) * 100);
+          await supabase
+            .from('broadcast_executions')
+            .update({
+              current_index: i + 1,
+              sent_count: successCount,
+              failed_count: failedCount,
+              last_sent_at: new Date().toISOString()
+            })
+            .eq('id', execution.id);
+
+          // Emit progress update via WebSocket
+          broadcastToClients({
+            type: 'broadcast_status',
+            data: {
               broadcast_id: broadcastId,
+              execution_id: execution.id,
+              status: 'running',
               total: contacts.length,
               sent: successCount,
               failed: failedCount,
-              last_sent_contact: lastSentContact,
-              completed_at: new Date().toLocaleString()
+              current_index: i + 1,
+              progress: progress,
+              current_contact: {
+                id: contact.id,
+                name: contact.name,
+                phone: contact.phone,
+                status: messageStatus
+              }
             }
-          );
+          });
+
+          // Wait between messages (except for last message)
+          if (i < contacts.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+        }
+
+        // Mark broadcast as completed
+        await supabase
+          .from('broadcast_executions')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', execution.id);
+
+        // Emit completion status via WebSocket
+        broadcastToClients({
+          type: 'broadcast_status',
+          data: {
+            broadcast_id: broadcastId,
+            execution_id: execution.id,
+            status: 'completed',
+            total: contacts.length,
+            sent: successCount,
+            failed: failedCount,
+            current_index: contacts.length,
+            progress: 100
+          }
+        });
+
+        log('info', `📊 Broadcast complete: ${successCount} sent, ${failedCount} failed`);
+
+        // Send notification to notification contact if provided
+        if (execution.notification_contact) {
+          await sendBroadcastNotification(execution.notification_contact, {
+            status: 'completed',
+            broadcast_id: broadcastId,
+            total: contacts.length,
+            sent: successCount,
+            failed: failedCount,
+            last_sent_contact: lastSentContact,
+            completed_at: new Date().toLocaleString()
+          });
         }
       } catch (error) {
         // Handle broadcast failure/disruption
@@ -1911,18 +1954,15 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
 
         // Send notification to notification contact if provided
         if (execution.notification_contact) {
-          await sendBroadcastNotification(
-            execution.notification_contact,
-            {
-              status: 'failed',
-              broadcast_id: broadcastId,
-              total: contacts.length,
-              sent: successCount,
-              failed: failedCount,
-              last_sent_contact: lastSentContact,
-              completed_at: new Date().toLocaleString()
-            }
-          );
+          await sendBroadcastNotification(execution.notification_contact, {
+            status: 'failed',
+            broadcast_id: broadcastId,
+            total: contacts.length,
+            sent: successCount,
+            failed: failedCount,
+            last_sent_contact: lastSentContact,
+            completed_at: new Date().toLocaleString()
+          });
         }
       }
     }, 100);
@@ -1938,7 +1978,6 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
         delay_between_messages
       }
     });
-
   } catch (error) {
     log('error', `❌ Broadcast error: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
@@ -1951,9 +1990,7 @@ app.get('/api/broadcast/status/:id', async (req, res) => {
 
   try {
     // Try to find execution by broadcast_id first, then by execution_id
-    let query = supabase
-      .from('broadcast_executions')
-      .select('*');
+    let query = supabase.from('broadcast_executions').select('*');
 
     // Check if ID is numeric (execution_id) or string (broadcast_id)
     if (id.startsWith('broadcast_')) {
@@ -2001,7 +2038,6 @@ app.get('/api/broadcast/status/:id', async (req, res) => {
         }
       }
     });
-
   } catch (error) {
     log('error', `❌ Error fetching broadcast status: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
@@ -2035,7 +2071,6 @@ app.get('/api/broadcast/history', async (req, res) => {
       success: true,
       data: executions || []
     });
-
   } catch (error) {
     log('error', `❌ Error fetching broadcast history: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
@@ -2053,7 +2088,7 @@ app.get('/api/valuations/list', async (req, res) => {
     date_from: req.query.date_from,
     date_to: req.query.date_to,
     search: req.query.search,
-    limit: req.query.limit ? parseInt(req.query.limit) : undefined,
+    limit: req.query.limit ? parseInt(req.query.limit) : undefined
   };
   const result = await valuationAPI.getValuations(filters);
   res.status(result.success ? 200 : 400).json(result);
@@ -2077,7 +2112,7 @@ app.delete('/api/valuations/:id/delete', async (req, res) => {
 app.get('/api/valuations/statistics/summary', async (req, res) => {
   const filters = {
     date_from: req.query.date_from,
-    date_to: req.query.date_to,
+    date_to: req.query.date_to
   };
   const result = await valuationAPI.getStatistics(filters);
   res.status(result.success ? 200 : 400).json(result);
@@ -2089,7 +2124,7 @@ app.get('/api/valuations/export/csv', async (req, res) => {
     banker_id: req.query.banker_id,
     date_from: req.query.date_from,
     date_to: req.query.date_to,
-    search: req.query.search,
+    search: req.query.search
   };
   const result = await valuationAPI.exportToCSV(filters);
 
@@ -2108,9 +2143,10 @@ app.get('/api/valuations/export/csv', async (req, res) => {
 
 app.get('/api/bankers/list', async (req, res) => {
   const filters = {
-    is_active: req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined,
+    is_active:
+      req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined,
     bank_name: req.query.bank_name,
-    search: req.query.search,
+    search: req.query.search
   };
   const result = await bankerAPI.getBankers(filters);
   res.status(result.success ? 200 : 400).json(result);
@@ -2162,7 +2198,7 @@ app.get('/health', async (_, res) => {
         // Use Promise.race with timeout to avoid blocking
         clientState = await Promise.race([
           client.getState(),
-          new Promise((resolve) => setTimeout(() => resolve('INITIALIZING'), 1000))
+          new Promise(resolve => setTimeout(() => resolve('INITIALIZING'), 1000))
         ]);
       } catch (err) {
         clientState = 'ERROR';
@@ -2174,10 +2210,12 @@ app.get('/health', async (_, res) => {
     // Quick Supabase check with timeout
     let supabaseStatus = 'UNKNOWN';
     try {
-      const supabaseCheck = supabase.from('whatsapp_sessions').select('count(*)', { count: 'exact', head: true });
+      const supabaseCheck = supabase
+        .from('whatsapp_sessions')
+        .select('count(*)', { count: 'exact', head: true });
       const { error } = await Promise.race([
         supabaseCheck,
-        new Promise((resolve) => setTimeout(() => resolve({ error: 'TIMEOUT' }), 2000))
+        new Promise(resolve => setTimeout(() => resolve({ error: 'TIMEOUT' }), 2000))
       ]);
       supabaseStatus = error ? 'ERROR' : 'CONNECTED';
     } catch (err) {
@@ -2193,11 +2231,11 @@ app.get('/health', async (_, res) => {
       version: BOT_VERSION,
       uptime: {
         seconds: Math.floor((Date.now() - startedAt) / 1000),
-        readable: formatUptime(Date.now() - startedAt),
+        readable: formatUptime(Date.now() - startedAt)
       },
       whatsapp: {
         state: clientState,
-        ready: clientState === 'CONNECTED',
+        ready: clientState === 'CONNECTED'
       },
       supabase: supabaseStatus,
       humanBehavior: humanBehavior.getStatus(),
@@ -2205,11 +2243,11 @@ app.get('/health', async (_, res) => {
         memory: {
           rss: `${(mem.rss / 1024 / 1024).toFixed(1)} MB`,
           heapUsed: `${(mem.heapUsed / 1024 / 1024).toFixed(1)} MB`,
-          heapTotal: `${(mem.heapTotal / 1024 / 1024).toFixed(1)} MB`,
+          heapTotal: `${(mem.heapTotal / 1024 / 1024).toFixed(1)} MB`
         },
-        nodejs: process.version,
+        nodejs: process.version
       },
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     res.status(200).json(health);
@@ -2219,7 +2257,7 @@ app.get('/health', async (_, res) => {
       status: 'healthy',
       server: 'running',
       error: err.message,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -2246,7 +2284,10 @@ async function checkWhatsAppUpdates(currentVersion) {
 
     if (latestVersion !== currentVersion) {
       log('warn', `⚠️ WhatsApp Web.js update available: ${currentVersion} → ${latestVersion}`);
-      log('warn', `   Run: npm run check-updates or npm run update-safe before deploying please check with me on this first`);
+      log(
+        'warn',
+        `   Run: npm run check-updates or npm run update-safe before deploying please check with me on this first`
+      );
     } else {
       log('info', `✅ WhatsApp Web.js is up to date (${currentVersion})`);
     }
@@ -2260,7 +2301,8 @@ async function checkWhatsAppUpdates(currentVersion) {
 const server = app.listen(PORT, () => {
   // Get whatsapp-web.js version from package.json
   const packageJson = require('./package.json');
-  const whatsappVersion = packageJson.dependencies['whatsapp-web.js']?.replace('^', '') || 'unknown';
+  const whatsappVersion =
+    packageJson.dependencies['whatsapp-web.js']?.replace('^', '') || 'unknown';
 
   log('info', `🚀 Server started on http://localhost:${PORT}`);
   log('info', `📱 Dashboard: http://localhost:${PORT}`);
@@ -2273,11 +2315,12 @@ const server = app.listen(PORT, () => {
 
   // In production: delay 10 seconds to let health checks pass first
   // In development: random delay for human-like behavior
-  const startDelay = process.env.NODE_ENV === 'production'
-    ? 10000  // 10 seconds delay in production
-    : humanBehavior.getRandomDelay(3000, 8000);
+  const startDelay =
+    process.env.NODE_ENV === 'production'
+      ? 10000 // 10 seconds delay in production
+      : humanBehavior.getRandomDelay(3000, 8000);
 
-  log('info', `💻 WhatsApp client will initialize in ${Math.round(startDelay/1000)} seconds...`);
+  log('info', `💻 WhatsApp client will initialize in ${Math.round(startDelay / 1000)} seconds...`);
   log('info', '✅ Server is healthy and ready for requests');
 
   setTimeout(() => {
@@ -2289,15 +2332,17 @@ const server = app.listen(PORT, () => {
 // WebSocket server for real-time updates
 const wss = new WebSocket.Server({ server });
 
-wss.on('connection', (ws) => {
+wss.on('connection', ws => {
   log('info', '📡 New WebSocket client connected');
   wsClients.add(ws);
 
   // Send initial status
-  ws.send(JSON.stringify({
-    type: 'connected',
-    message: 'WebSocket connected to WhatsApp Bot'
-  }));
+  ws.send(
+    JSON.stringify({
+      type: 'connected',
+      message: 'WebSocket connected to WhatsApp Bot'
+    })
+  );
 
   // Send current QR code if available
   if (currentQRCode) {
@@ -2309,7 +2354,7 @@ wss.on('connection', (ws) => {
     wsClients.delete(ws);
   });
 
-  ws.on('error', (error) => {
+  ws.on('error', error => {
     log('error', `WebSocket error: ${error.message}`);
     wsClients.delete(ws);
   });
@@ -2443,6 +2488,6 @@ function formatUptime(ms) {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  
+
   return `${days}d ${hours % 24}h ${minutes % 60}m ${seconds % 60}s`;
 }

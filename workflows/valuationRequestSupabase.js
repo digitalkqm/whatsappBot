@@ -87,20 +87,36 @@ function validateValuationData(data) {
   const missingFields = [];
 
   // Check all required fields
-  if (!data.address || data.address.includes('[') || data.address.toLowerCase().includes('property address')) {
+  if (
+    !data.address ||
+    data.address.includes('[') ||
+    data.address.toLowerCase().includes('property address')
+  ) {
     missingFields.push('Address');
   }
   if (!data.size || data.size.includes('[') || data.size.toLowerCase().includes('property size')) {
     missingFields.push('Size');
   }
-  if (!data.asking || data.asking.includes('[') || data.asking.toLowerCase().includes('asking price')) {
+  if (
+    !data.asking ||
+    data.asking.includes('[') ||
+    data.asking.toLowerCase().includes('asking price')
+  ) {
     missingFields.push('Asking');
   }
-  if (!data.salesperson_name || data.salesperson_name.includes('[') || data.salesperson_name.toLowerCase().includes('agent/salesperson')) {
+  if (
+    !data.salesperson_name ||
+    data.salesperson_name.includes('[') ||
+    data.salesperson_name.toLowerCase().includes('agent/salesperson')
+  ) {
     missingFields.push('Salesperson Name');
   }
   // Agent number is optional - removed from required validation
-  if (!data.banker_name_requested || data.banker_name_requested.includes('[') || data.banker_name_requested.toLowerCase().includes('banker name')) {
+  if (
+    !data.banker_name_requested ||
+    data.banker_name_requested.includes('[') ||
+    data.banker_name_requested.toLowerCase().includes('banker name')
+  ) {
     missingFields.push('Banker Name');
   }
 
@@ -169,7 +185,8 @@ async function routeToBankers(bankerNameRequested) {
 
   console.log(`📊 Found ${bankers.length} active banker(s) in database:`);
   bankers.forEach((b, idx) => {
-    const keyword = (b.routing_keywords && b.routing_keywords.length > 0) ? b.routing_keywords[0] : 'none';
+    const keyword =
+      b.routing_keywords && b.routing_keywords.length > 0 ? b.routing_keywords[0] : 'none';
     console.log(`   ${idx + 1}. ${b.name} (${b.bank_name}) - Keyword: "${keyword}"`);
   });
 
@@ -206,12 +223,16 @@ async function routeToBankers(bankerNameRequested) {
 
   // Report results
   if (matchedBankers.length > 0) {
-    console.log(`✅ Successfully matched ${matchedBankers.length}/${requestedNames.length} banker(s)`);
+    console.log(
+      `✅ Successfully matched ${matchedBankers.length}/${requestedNames.length} banker(s)`
+    );
   }
 
   if (unmatchedNames.length > 0) {
     console.error(`❌ Failed to match ${unmatchedNames.length} banker(s):`, unmatchedNames);
-    console.error(`💡 Tip: Add exact routing keywords to database for: ${unmatchedNames.join(', ')}`);
+    console.error(
+      `💡 Tip: Add exact routing keywords to database for: ${unmatchedNames.join(', ')}`
+    );
   }
 
   return matchedBankers;
@@ -269,11 +290,16 @@ async function valuationRequestWorkflow(payload, engine) {
   const bankers = await routeToBankers(parsed.banker_name_requested);
   if (!bankers || bankers.length === 0) {
     console.error('❌ No bankers found for:', parsed.banker_name_requested);
-    await message.reply('❌ Could not find any matching bankers. Please check banker names and try again.');
+    await message.reply(
+      '❌ Could not find any matching bankers. Please check banker names and try again.'
+    );
     return;
   }
 
-  console.log(`✅ Routed to ${bankers.length} banker(s):`, bankers.map(b => `${b.name} (${b.bank_name})`).join(', '));
+  console.log(
+    `✅ Routed to ${bankers.length} banker(s):`,
+    bankers.map(b => `${b.name} (${b.bank_name})`).join(', ')
+  );
 
   // Prepare banker message (ONLY 3 fields)
   const bankerMessage = formatBankerMessage(parsed.address, parsed.size, parsed.asking);
@@ -330,7 +356,9 @@ async function valuationRequestWorkflow(payload, engine) {
     // Forward to banker group
     try {
       // Send via message queue with CRITICAL priority (customer-facing workflow)
-      console.log(`📤 Queuing valuation request [critical] to banker group: ${banker.whatsapp_group_id}`);
+      console.log(
+        `📤 Queuing valuation request [critical] to banker group: ${banker.whatsapp_group_id}`
+      );
       const sentMessage = await engine.messageQueue.send(
         banker.whatsapp_group_id,
         bankerMessage,
@@ -357,7 +385,6 @@ async function valuationRequestWorkflow(payload, engine) {
       } else {
         console.log(`✅ Updated forward tracking for ${banker.name}`);
       }
-
     } catch (forwardError) {
       console.error(`❌ Error forwarding to ${banker.name}:`, forwardError);
       forwardErrors.push(`${banker.name}: Failed to forward`);
@@ -388,17 +415,21 @@ async function valuationRequestWorkflow(payload, engine) {
         })
         .in('id', valuationIds);
     }
-
   } catch (ackError) {
     console.error('❌ Error sending acknowledgment:', ackError);
   }
 
   // Report any errors
   if (forwardErrors.length > 0) {
-    console.error(`⚠️ Some forwards had errors (${forwardErrors.length}/${bankers.length}):`, forwardErrors);
+    console.error(
+      `⚠️ Some forwards had errors (${forwardErrors.length}/${bankers.length}):`,
+      forwardErrors
+    );
   }
 
-  console.log(`✅ Valuation request workflow complete - processed ${savedValuations.length}/${bankers.length} banker(s)`);
+  console.log(
+    `✅ Valuation request workflow complete - processed ${savedValuations.length}/${bankers.length} banker(s)`
+  );
 }
 
 module.exports = { valuationRequestWorkflow };

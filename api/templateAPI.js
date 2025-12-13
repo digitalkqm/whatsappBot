@@ -26,7 +26,7 @@ class TemplateAPI {
           content,
           variables: extractedVars,
           image_url: image_url || null,
-          metadata: metadata || {},
+          metadata: metadata || {}
         })
         .select()
         .single();
@@ -35,7 +35,6 @@ class TemplateAPI {
 
       console.log(`✅ Template created: ${name} (${data.id})`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error creating template:', error.message);
       return { success: false, error: error.message };
@@ -64,7 +63,6 @@ class TemplateAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error getting templates:', error.message);
       return { success: false, error: error.message };
@@ -83,7 +81,6 @@ class TemplateAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error getting template:', error.message);
       return { success: false, error: error.message };
@@ -112,7 +109,6 @@ class TemplateAPI {
 
       console.log(`✅ Template updated: ${id}`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error updating template:', error.message);
       return { success: false, error: error.message };
@@ -122,16 +118,12 @@ class TemplateAPI {
   // Delete template
   async deleteTemplate(id) {
     try {
-      const { error } = await this.supabase
-        .from('message_templates')
-        .delete()
-        .eq('id', id);
+      const { error } = await this.supabase.from('message_templates').delete().eq('id', id);
 
       if (error) throw error;
 
       console.log(`✅ Template deleted: ${id}`);
       return { success: true, message: 'Template deleted successfully' };
-
     } catch (error) {
       console.error('❌ Error deleting template:', error.message);
       return { success: false, error: error.message };
@@ -159,7 +151,7 @@ class TemplateAPI {
           content: original.content,
           variables: original.variables,
           image_url: original.image_url,
-          metadata: original.metadata,
+          metadata: original.metadata
         })
         .select()
         .single();
@@ -168,7 +160,6 @@ class TemplateAPI {
 
       console.log(`✅ Template duplicated: ${id} → ${data.id}`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error duplicating template:', error.message);
       return { success: false, error: error.message };
@@ -189,7 +180,6 @@ class TemplateAPI {
       const categories = [...new Set(data.map(item => item.category))].filter(Boolean);
 
       return { success: true, data: categories };
-
     } catch (error) {
       console.error('❌ Error getting categories:', error.message);
       return { success: false, error: error.message };
@@ -221,7 +211,6 @@ class TemplateAPI {
           unreplaced_variables: unreplaced || []
         }
       };
-
     } catch (error) {
       console.error('❌ Error rendering template:', error.message);
       return { success: false, error: error.message };
@@ -288,7 +277,6 @@ class TemplateAPI {
       }
 
       return this.renderTemplate(template, { ...defaultSampleData, ...sampleData });
-
     } catch (error) {
       console.error('❌ Error previewing template:', error.message);
       return { success: false, error: error.message };

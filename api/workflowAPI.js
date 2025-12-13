@@ -8,7 +8,8 @@ class WorkflowAPI {
   // Create a new workflow
   async createWorkflow(workflowData) {
     try {
-      const { name, description, trigger_type, trigger_config, workflow_data, is_active } = workflowData;
+      const { name, description, trigger_type, trigger_config, workflow_data, is_active } =
+        workflowData;
 
       // Validate required fields
       if (!name || !trigger_type || !workflow_data) {
@@ -26,7 +27,7 @@ class WorkflowAPI {
           trigger_type,
           trigger_config: trigger_config || {},
           workflow_data,
-          is_active: is_active !== undefined ? is_active : true,
+          is_active: is_active !== undefined ? is_active : true
         })
         .select()
         .single();
@@ -35,7 +36,6 @@ class WorkflowAPI {
 
       console.log(`✅ Workflow created: ${name} (${data.id})`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error creating workflow:', error.message);
       return { success: false, error: error.message };
@@ -64,7 +64,6 @@ class WorkflowAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error getting workflows:', error.message);
       return { success: false, error: error.message };
@@ -83,7 +82,6 @@ class WorkflowAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error getting workflow:', error.message);
       return { success: false, error: error.message };
@@ -112,7 +110,6 @@ class WorkflowAPI {
 
       console.log(`✅ Workflow updated: ${id}`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error updating workflow:', error.message);
       return { success: false, error: error.message };
@@ -122,16 +119,12 @@ class WorkflowAPI {
   // Delete workflow
   async deleteWorkflow(id) {
     try {
-      const { error } = await this.supabase
-        .from('workflows')
-        .delete()
-        .eq('id', id);
+      const { error } = await this.supabase.from('workflows').delete().eq('id', id);
 
       if (error) throw error;
 
       console.log(`✅ Workflow deleted: ${id}`);
       return { success: true, message: 'Workflow deleted successfully' };
-
     } catch (error) {
       console.error('❌ Error deleting workflow:', error.message);
       return { success: false, error: error.message };
@@ -155,7 +148,6 @@ class WorkflowAPI {
 
       console.log(`✅ Workflow ${is_active ? 'activated' : 'deactivated'}: ${id}`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error toggling workflow:', error.message);
       return { success: false, error: error.message };
@@ -183,7 +175,7 @@ class WorkflowAPI {
           trigger_type: original.trigger_type,
           trigger_config: original.trigger_config,
           workflow_data: original.workflow_data,
-          is_active: false, // Start as inactive
+          is_active: false // Start as inactive
         })
         .select()
         .single();
@@ -192,7 +184,6 @@ class WorkflowAPI {
 
       console.log(`✅ Workflow duplicated: ${id} → ${data.id}`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error duplicating workflow:', error.message);
       return { success: false, error: error.message };
@@ -249,7 +240,6 @@ class WorkflowAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error getting execution history:', error.message);
       return { success: false, error: error.message };
@@ -273,7 +263,6 @@ class WorkflowAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error creating execution record:', error.message);
       return { success: false, error: error.message };
@@ -293,7 +282,6 @@ class WorkflowAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error updating execution:', error.message);
       return { success: false, error: error.message };

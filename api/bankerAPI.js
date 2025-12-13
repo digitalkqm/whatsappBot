@@ -31,7 +31,9 @@ class BankerAPI {
       }
 
       if (filters.search) {
-        query = query.or(`name.ilike.%${filters.search}%,display_name.ilike.%${filters.search}%,bank_name.ilike.%${filters.search}%`);
+        query = query.or(
+          `name.ilike.%${filters.search}%,display_name.ilike.%${filters.search}%,bank_name.ilike.%${filters.search}%`
+        );
       }
 
       const { data, error } = await query;
@@ -41,13 +43,13 @@ class BankerAPI {
       return {
         success: true,
         data: data || [],
-        count: data?.length || 0,
+        count: data?.length || 0
       };
     } catch (error) {
       console.error('Error fetching bankers:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -57,23 +59,19 @@ class BankerAPI {
    */
   async getBanker(id) {
     try {
-      const { data, error } = await this.supabase
-        .from('bankers')
-        .select('*')
-        .eq('id', id)
-        .single();
+      const { data, error } = await this.supabase.from('bankers').select('*').eq('id', id).single();
 
       if (error) throw error;
 
       return {
         success: true,
-        data,
+        data
       };
     } catch (error) {
       console.error('Error fetching banker:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -100,7 +98,7 @@ class BankerAPI {
           whatsapp_group_name: bankerData.whatsapp_group_name || null,
           routing_keywords: bankerData.routing_keywords || [],
           is_active: bankerData.is_active !== undefined ? bankerData.is_active : true,
-          priority: bankerData.priority || 0,
+          priority: bankerData.priority || 0
         })
         .select()
         .single();
@@ -109,13 +107,13 @@ class BankerAPI {
 
       return {
         success: true,
-        data,
+        data
       };
     } catch (error) {
       console.error('Error creating banker:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -129,7 +127,7 @@ class BankerAPI {
         .from('bankers')
         .update({
           ...updates,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .eq('id', id)
         .select()
@@ -139,13 +137,13 @@ class BankerAPI {
 
       return {
         success: true,
-        data,
+        data
       };
     } catch (error) {
       console.error('Error updating banker:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -155,22 +153,19 @@ class BankerAPI {
    */
   async deleteBanker(id) {
     try {
-      const { error } = await this.supabase
-        .from('bankers')
-        .delete()
-        .eq('id', id);
+      const { error } = await this.supabase.from('bankers').delete().eq('id', id);
 
       if (error) throw error;
 
       return {
         success: true,
-        message: 'Banker deleted successfully',
+        message: 'Banker deleted successfully'
       };
     } catch (error) {
       console.error('Error deleting banker:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -184,7 +179,7 @@ class BankerAPI {
         .from('bankers')
         .update({
           is_active: isActive,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .eq('id', id)
         .select()
@@ -194,13 +189,13 @@ class BankerAPI {
 
       return {
         success: true,
-        data,
+        data
       };
     } catch (error) {
       console.error('Error toggling banker status:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -231,7 +226,7 @@ class BankerAPI {
         banker: banker,
         total_valuations: valuations.length,
         by_status: {},
-        avg_response_time: null,
+        avg_response_time: null
       };
 
       // Calculate statistics
@@ -257,13 +252,13 @@ class BankerAPI {
 
       return {
         success: true,
-        data: stats,
+        data: stats
       };
     } catch (error) {
       console.error('Error fetching banker statistics:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -284,13 +279,13 @@ class BankerAPI {
 
       return {
         success: true,
-        data: bankNames.sort(),
+        data: bankNames.sort()
       };
     } catch (error) {
       console.error('Error fetching bank names:', error);
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }

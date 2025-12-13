@@ -27,7 +27,7 @@ class ContactAPI {
           source: source || 'manual',
           source_config: source_config || {},
           tags: tags || [],
-          total_count: contacts.length,
+          total_count: contacts.length
         })
         .select()
         .single();
@@ -36,7 +36,6 @@ class ContactAPI {
 
       console.log(`✅ Contact list created: ${name} (${data.id})`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error creating contact list:', error.message);
       return { success: false, error: error.message };
@@ -69,7 +68,6 @@ class ContactAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error getting contact lists:', error.message);
       return { success: false, error: error.message };
@@ -88,7 +86,6 @@ class ContactAPI {
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error getting contact list:', error.message);
       return { success: false, error: error.message };
@@ -118,7 +115,6 @@ class ContactAPI {
 
       console.log(`✅ Contact list updated: ${id}`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error updating contact list:', error.message);
       return { success: false, error: error.message };
@@ -128,16 +124,12 @@ class ContactAPI {
   // Delete contact list
   async deleteContactList(id) {
     try {
-      const { error } = await this.supabase
-        .from('contact_lists')
-        .delete()
-        .eq('id', id);
+      const { error } = await this.supabase.from('contact_lists').delete().eq('id', id);
 
       if (error) throw error;
 
       console.log(`✅ Contact list deleted: ${id}`);
       return { success: true, message: 'Contact list deleted successfully' };
-
     } catch (error) {
       console.error('❌ Error deleting contact list:', error.message);
       return { success: false, error: error.message };
@@ -181,7 +173,6 @@ class ContactAPI {
 
       console.log(`✅ Added ${uniqueNewContacts.length} contacts to list ${id}`);
       return { success: true, data, added_count: uniqueNewContacts.length };
-
     } catch (error) {
       console.error('❌ Error adding contacts:', error.message);
       return { success: false, error: error.message };
@@ -221,7 +212,6 @@ class ContactAPI {
       const removedCount = list.contacts.length - updatedContacts.length;
       console.log(`✅ Removed ${removedCount} contacts from list ${id}`);
       return { success: true, data, removed_count: removedCount };
-
     } catch (error) {
       console.error('❌ Error removing contacts:', error.message);
       return { success: false, error: error.message };
@@ -279,7 +269,6 @@ class ContactAPI {
         source: 'csv_import',
         tags: ['imported', 'csv']
       });
-
     } catch (error) {
       console.error('❌ Error importing from CSV:', error.message);
       return { success: false, error: error.message };
@@ -303,7 +292,6 @@ class ContactAPI {
         }));
 
       return { success: true, data: groups };
-
     } catch (error) {
       console.error('❌ Error getting WhatsApp groups:', error.message);
       return { success: false, error: error.message };
@@ -365,13 +353,14 @@ class ContactAPI {
       const stats = {
         total_contacts: list.contacts.length,
         with_email: list.contacts.filter(c => c.email).length,
-        with_custom_fields: list.contacts.filter(c => c.custom_fields && Object.keys(c.custom_fields).length > 0).length,
+        with_custom_fields: list.contacts.filter(
+          c => c.custom_fields && Object.keys(c.custom_fields).length > 0
+        ).length,
         tags: list.tags || [],
         unique_custom_fields: this.getUniqueCustomFields(list.contacts)
       };
 
       return { success: true, data: stats };
-
     } catch (error) {
       console.error('❌ Error getting statistics:', error.message);
       return { success: false, error: error.message };

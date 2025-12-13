@@ -63,12 +63,12 @@ function connectWebSocket() {
       }
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = event => {
       const data = JSON.parse(event.data);
       handleWebSocketMessage(data);
     };
 
-    ws.onerror = (error) => {
+    ws.onerror = error => {
       console.error('WebSocket error:', error);
       updateConnectionStatus('error');
     };
@@ -94,7 +94,10 @@ function connectWebSocket() {
 // Handle WebSocket messages
 function handleWebSocketMessage(data) {
   if (data.type === 'qr') {
-    console.log('Received QR code via WebSocket', data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : 'no timestamp');
+    console.log(
+      'Received QR code via WebSocket',
+      data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : 'no timestamp'
+    );
 
     // Clear authentication state - re-authentication needed
     localStorage.removeItem('whatsapp_authenticated');
@@ -393,13 +396,19 @@ function updateQRInstructions(state) {
   const instructions = document.querySelector('.qr-instructions');
 
   const messages = {
-    loading: '<h3>⏳ Generating QR Code...</h3><p>Please wait a moment while we prepare your authentication code.</p>',
-    waiting: '<h3>⏳ Waiting...</h3><p>The QR code will appear shortly. Make sure WhatsApp is open on your phone.</p>',
-    active: '<h3>📱 Scan to Connect:</h3><ol><li>Open WhatsApp on your phone</li><li>Tap <strong>Menu</strong> or <strong>Settings</strong></li><li>Tap <strong>Linked Devices</strong></li><li>Tap <strong>Link a Device</strong></li><li>Scan this QR code with your phone</li></ol>',
-    expired: '<h3>⏰ QR Code Expired</h3><p>QR codes expire after 60 seconds for security. Click the button above to generate a new one.</p>',
-    error: '<h3>❌ Error</h3><p>Something went wrong. We\'ll automatically retry in a moment.</p>',
-    authenticating: '<h3>🔐 Authenticating...</h3><p>Great! We detected your scan. Connecting to WhatsApp servers...</p>',
-    success: '<h3>✅ Connected!</h3><p>Your WhatsApp bot is now active and ready to process messages.</p>'
+    loading:
+      '<h3>⏳ Generating QR Code...</h3><p>Please wait a moment while we prepare your authentication code.</p>',
+    waiting:
+      '<h3>⏳ Waiting...</h3><p>The QR code will appear shortly. Make sure WhatsApp is open on your phone.</p>',
+    active:
+      '<h3>📱 Scan to Connect:</h3><ol><li>Open WhatsApp on your phone</li><li>Tap <strong>Menu</strong> or <strong>Settings</strong></li><li>Tap <strong>Linked Devices</strong></li><li>Tap <strong>Link a Device</strong></li><li>Scan this QR code with your phone</li></ol>',
+    expired:
+      '<h3>⏰ QR Code Expired</h3><p>QR codes expire after 60 seconds for security. Click the button above to generate a new one.</p>',
+    error: "<h3>❌ Error</h3><p>Something went wrong. We'll automatically retry in a moment.</p>",
+    authenticating:
+      '<h3>🔐 Authenticating...</h3><p>Great! We detected your scan. Connecting to WhatsApp servers...</p>',
+    success:
+      '<h3>✅ Connected!</h3><p>Your WhatsApp bot is now active and ready to process messages.</p>'
   };
 
   instructions.innerHTML = messages[state] || messages.waiting;
@@ -468,14 +477,18 @@ function updateWorkflows(workflows) {
     return;
   }
 
-  container.innerHTML = workflows.map(wf => `
+  container.innerHTML = workflows
+    .map(
+      wf => `
     <div class="workflow-item ${wf.status}">
       <div class="workflow-name">${wf.name}</div>
       <div class="workflow-status">
         Status: ${wf.status} | Started: ${new Date(wf.startedAt).toLocaleString()}
       </div>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 }
 
 // Update last update timestamp
@@ -572,7 +585,11 @@ async function clearSession() {
 
 // Logout - Comprehensive session cleanup
 async function logout() {
-  if (!confirm('🚪 Logout from WhatsApp?\n\nThis will:\n✓ Disconnect your WhatsApp session\n✓ Clear all session data\n✓ Remove authentication\n✓ Prepare for new login\n\nYou will need to scan QR code again to reconnect.')) {
+  if (
+    !confirm(
+      '🚪 Logout from WhatsApp?\n\nThis will:\n✓ Disconnect your WhatsApp session\n✓ Clear all session data\n✓ Remove authentication\n✓ Prepare for new login\n\nYou will need to scan QR code again to reconnect.'
+    )
+  ) {
     return;
   }
 
@@ -692,20 +709,23 @@ function copyTemplate() {
 
   // Use modern clipboard API
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = event.target;
-      const originalText = btn.textContent;
-      btn.textContent = '✅ Copied!';
-      btn.style.background = '#10b981';
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '✅ Copied!';
+        btn.style.background = '#10b981';
 
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.style.background = '';
-      }, 2000);
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-      fallbackCopy(text);
-    });
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.style.background = '';
+        }, 2000);
+      })
+      .catch(err => {
+        console.error('Failed to copy:', err);
+        fallbackCopy(text);
+      });
   } else {
     fallbackCopy(text);
   }
@@ -744,7 +764,8 @@ function addLogEntry(logData) {
   // Create log entry element
   const logEntry = document.createElement('div');
   logEntry.className = 'log-entry';
-  logEntry.style.cssText = 'padding: 0.5rem; border-bottom: 1px solid var(--border-color); display: flex; gap: 1rem;';
+  logEntry.style.cssText =
+    'padding: 0.5rem; border-bottom: 1px solid var(--border-color); display: flex; gap: 1rem;';
 
   // Format timestamp
   const time = new Date(logData.timestamp).toLocaleTimeString();

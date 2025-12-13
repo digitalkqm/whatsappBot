@@ -42,7 +42,10 @@ async function ratePackageUpdateWorkflow(payload, engine) {
 
     // Send confirmation back to WhatsApp group
     if (groupId) {
-      await notifyGroup(groupId, '✅ Rate package update received and processing...\n\nThe n8n workflow will parse and store the data in Supabase.');
+      await notifyGroup(
+        groupId,
+        '✅ Rate package update received and processing...\n\nThe n8n workflow will parse and store the data in Supabase.'
+      );
     }
 
     return {
@@ -50,7 +53,6 @@ async function ratePackageUpdateWorkflow(payload, engine) {
       message: 'Rate package update processed',
       n8nResponse: response.data
     };
-
   } catch (error) {
     console.error('❌ Rate Package Update Workflow Error:', error.message);
 
@@ -80,7 +82,7 @@ async function notifyGroup(groupId, message) {
       {
         groupId,
         message,
-        priority: 'normal'  // Normal priority for workflow notifications
+        priority: 'normal' // Normal priority for workflow notifications
       },
       {
         timeout: 10000,

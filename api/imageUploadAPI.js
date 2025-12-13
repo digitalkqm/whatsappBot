@@ -49,7 +49,6 @@ class ImageUploadAPI {
         width: result.width,
         height: result.height
       };
-
     } catch (error) {
       console.error('❌ ImageKit upload error:', error.message);
       return {

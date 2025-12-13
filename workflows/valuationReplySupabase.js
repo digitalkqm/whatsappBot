@@ -146,7 +146,10 @@ async function valuationReplyWorkflow(payload, engine) {
   // Send to requester group via message queue with CRITICAL priority
   let finalReplyMessageId = null;
   try {
-    console.log('📤 Queuing valuation reply [critical] to requester group:', valuation.requester_group_id);
+    console.log(
+      '📤 Queuing valuation reply [critical] to requester group:',
+      valuation.requester_group_id
+    );
     const sentMessage = await engine.messageQueue.send(
       valuation.requester_group_id,
       requesterMessage,
@@ -156,7 +159,6 @@ async function valuationReplyWorkflow(payload, engine) {
 
     console.log('✅ Sent reply to requester group:', valuation.requester_group_id);
     console.log('✅ Final reply message ID:', finalReplyMessageId);
-
   } catch (requesterError) {
     console.error('❌ Error sending to requester group:', requesterError);
   }
@@ -167,7 +169,10 @@ async function valuationReplyWorkflow(payload, engine) {
     console.log('⚠️ Banker asked a question - NOT forwarding to agent contact');
   } else if (valuation.agent_whatsapp_id) {
     try {
-      console.log('📤 Queuing agent notification [critical] to agent:', valuation.agent_whatsapp_id);
+      console.log(
+        '📤 Queuing agent notification [critical] to agent:',
+        valuation.agent_whatsapp_id
+      );
       const sentMessage = await engine.messageQueue.send(
         valuation.agent_whatsapp_id,
         agentMessage,
@@ -177,7 +182,6 @@ async function valuationReplyWorkflow(payload, engine) {
 
       console.log('✅ Sent notification to agent:', valuation.agent_whatsapp_id);
       console.log('✅ Agent notification message ID:', agentNotificationMessageId);
-
     } catch (agentError) {
       console.error('❌ Error sending to agent:', agentError);
     }
@@ -199,13 +203,12 @@ async function valuationReplyWorkflow(payload, engine) {
     updateData.completed_at = new Date().toISOString();
   }
 
-  await supabase
-    .from('valuation_requests')
-    .update(updateData)
-    .eq('id', valuation.id);
+  await supabase.from('valuation_requests').update(updateData).eq('id', valuation.id);
 
   if (isQuestion) {
-    console.log('✅ Valuation reply workflow complete (clarification request - awaiting actual valuation)');
+    console.log(
+      '✅ Valuation reply workflow complete (clarification request - awaiting actual valuation)'
+    );
   } else {
     console.log('✅ Valuation reply workflow complete');
   }

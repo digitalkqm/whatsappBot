@@ -18,7 +18,9 @@ async function bankRatesUpdateWorkflow(payload, engine) {
 
   try {
     // Call n8n webhook for bank rates update
-    const n8nWebhookUrl = process.env.BANK_RATES_WEBHOOK_URL || 'https://kamdigital.app.n8n.cloud/webhook/bankRatesUpdate';
+    const n8nWebhookUrl =
+      process.env.BANK_RATES_WEBHOOK_URL ||
+      'https://kamdigital.app.n8n.cloud/webhook/bankRatesUpdate';
 
     console.log(`🔄 Calling n8n webhook: ${n8nWebhookUrl}`);
 
@@ -44,7 +46,10 @@ async function bankRatesUpdateWorkflow(payload, engine) {
 
     // Send confirmation back to WhatsApp group
     if (groupId) {
-      await notifyGroup(groupId, '✅ Bank rates update received and forwarded to n8n for processing.');
+      await notifyGroup(
+        groupId,
+        '✅ Bank rates update received and forwarded to n8n for processing.'
+      );
     }
 
     return {
@@ -52,7 +57,6 @@ async function bankRatesUpdateWorkflow(payload, engine) {
       message: 'Bank rates update processed',
       n8nResponse: response.data
     };
-
   } catch (error) {
     console.error('❌ Bank Rates Update Workflow Error:', error.message);
 

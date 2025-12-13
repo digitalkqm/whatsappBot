@@ -24,7 +24,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Setup event listeners
 function setupEventListeners() {
   document.getElementById('createListBtn').addEventListener('click', () => openCreateModal());
-  document.getElementById('downloadTemplateBtn').addEventListener('click', () => downloadCSVTemplate());
+  document
+    .getElementById('downloadTemplateBtn')
+    .addEventListener('click', () => downloadCSVTemplate());
   document.getElementById('manualForm').addEventListener('submit', handleManualSubmit);
   document.getElementById('csvForm').addEventListener('submit', handleCSVSubmit);
   document.getElementById('editForm').addEventListener('submit', handleEditSubmit);
@@ -94,7 +96,9 @@ function renderContacts() {
   const pageContacts = filteredContacts.slice(startIndex, endIndex);
 
   // Render table rows
-  tbody.innerHTML = pageContacts.map(contact => `
+  tbody.innerHTML = pageContacts
+    .map(
+      contact => `
     <tr data-contact-id="${contact.id}">
       <td class="checkbox-cell">
         <input type="checkbox"
@@ -131,7 +135,9 @@ function renderContacts() {
         </div>
       </td>
     </tr>
-  `).join('');
+  `
+    )
+    .join('');
 
   // Update pagination
   if (totalPages > 1) {
@@ -198,8 +204,8 @@ function updateBulkActionsUI() {
   // Update select all checkbox state
   const selectAllCheckbox = document.getElementById('selectAll');
   const visibleCheckboxes = document.querySelectorAll('.row-checkbox');
-  const allChecked = visibleCheckboxes.length > 0 &&
-                     Array.from(visibleCheckboxes).every(cb => cb.checked);
+  const allChecked =
+    visibleCheckboxes.length > 0 && Array.from(visibleCheckboxes).every(cb => cb.checked);
 
   selectAllCheckbox.checked = allChecked;
 }
@@ -231,9 +237,7 @@ function handleTierFilter(event) {
   if (!tier) {
     filteredContacts = [...allContacts];
   } else {
-    filteredContacts = allContacts.filter(contact =>
-      (contact.tier || 'Standard') === tier
-    );
+    filteredContacts = allContacts.filter(contact => (contact.tier || 'Standard') === tier);
   }
 
   currentPage = 1;
@@ -275,7 +279,7 @@ function setupCSVUpload() {
 
   zone.addEventListener('click', () => input.click());
 
-  zone.addEventListener('dragover', (e) => {
+  zone.addEventListener('dragover', e => {
     e.preventDefault();
     zone.classList.add('drag-over');
   });
@@ -284,7 +288,7 @@ function setupCSVUpload() {
     zone.classList.remove('drag-over');
   });
 
-  zone.addEventListener('drop', (e) => {
+  zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
@@ -295,7 +299,7 @@ function setupCSVUpload() {
     }
   });
 
-  input.addEventListener('change', (e) => {
+  input.addEventListener('change', e => {
     const file = e.target.files[0];
     if (file) handleCSVFile(file);
   });
@@ -305,7 +309,7 @@ function setupCSVUpload() {
 let csvData = null;
 async function handleCSVFile(file) {
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = e => {
     csvData = e.target.result;
     previewCSV(csvData);
     document.getElementById('csvSubmitBtn').disabled = false;
@@ -321,11 +325,13 @@ function previewCSV(data) {
 
   const table = `
     <table class="contacts-table">
-      ${lines.map((line, index) => {
-        const cells = line.split(',').map(c => c.trim());
-        const tag = index === 0 ? 'th' : 'td';
-        return `<tr>${cells.map(c => `<${tag}>${escapeHtml(c)}</${tag}>`).join('')}</tr>`;
-      }).join('')}
+      ${lines
+        .map((line, index) => {
+          const cells = line.split(',').map(c => c.trim());
+          const tag = index === 0 ? 'th' : 'td';
+          return `<tr>${cells.map(c => `<${tag}>${escapeHtml(c)}</${tag}>`).join('')}</tr>`;
+        })
+        .join('')}
     </table>
   `;
 
@@ -564,7 +570,6 @@ async function handleDeleteContact(contactId) {
   }
 }
 
-
 // Open broadcast modal
 function openBroadcastModal() {
   if (selectedContacts.size === 0) {
@@ -579,12 +584,16 @@ function openBroadcastModal() {
     <p style="margin-bottom: 0.5rem; font-weight: 500; color: #334155;">
       ${selectedContacts.size} contact${selectedContacts.size > 1 ? 's' : ''} selected:
     </p>
-    ${contacts.map(c => `
+    ${contacts
+      .map(
+        c => `
       <div style="padding: 0.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between;">
         <span>${escapeHtml(c.name || 'Unknown')}</span>
         <span style="color: #64748b; font-family: monospace;">${escapeHtml(c.phone)}</span>
       </div>
-    `).join('')}
+    `
+      )
+      .join('')}
   `;
 
   document.getElementById('broadcastModal').classList.add('active');
@@ -629,14 +638,14 @@ function setupBroadcastWebSocket() {
       console.log('Broadcast WebSocket connected');
     };
 
-    broadcastWs.onmessage = (event) => {
+    broadcastWs.onmessage = event => {
       const message = JSON.parse(event.data);
       if (message.type === 'broadcast_status') {
         handleBroadcastStatusUpdate(message.data);
       }
     };
 
-    broadcastWs.onerror = (error) => {
+    broadcastWs.onerror = error => {
       console.error('Broadcast WebSocket error:', error);
     };
 
@@ -676,7 +685,9 @@ function handleBroadcastStatusUpdate(data) {
 
   // Update individual contact status in table
   if (data.current_contact) {
-    const row = document.querySelector(`#broadcastStatusTable tr[data-contact-id="${data.current_contact.id}"]`);
+    const row = document.querySelector(
+      `#broadcastStatusTable tr[data-contact-id="${data.current_contact.id}"]`
+    );
     if (row) {
       const statusCell = row.querySelector('.status-badge');
       if (data.current_contact.status === 'sent') {
@@ -849,23 +860,25 @@ function showBroadcastProgress(contacts, initialStatus = null) {
 
   // Populate status table
   const tbody = document.getElementById('broadcastStatusTable');
-  tbody.innerHTML = contacts.map(c => {
-    // If recovering, determine status from initialStatus
-    let statusBadge = '<span class="status-badge status-pending">⏳ Pending</span>';
+  tbody.innerHTML = contacts
+    .map(c => {
+      // If recovering, determine status from initialStatus
+      let statusBadge = '<span class="status-badge status-pending">⏳ Pending</span>';
 
-    if (initialStatus && initialStatus.current_index > 0) {
-      // Try to determine status from messages (not available here, but will be updated via WebSocket)
-      statusBadge = '<span class="status-badge status-pending">⏳ Pending</span>';
-    }
+      if (initialStatus && initialStatus.current_index > 0) {
+        // Try to determine status from messages (not available here, but will be updated via WebSocket)
+        statusBadge = '<span class="status-badge status-pending">⏳ Pending</span>';
+      }
 
-    return `
+      return `
       <tr data-contact-id="${c.id}">
         <td>${escapeHtml(c.name || 'Unknown')}</td>
         <td>${escapeHtml(c.phone)}</td>
         <td>${statusBadge}</td>
       </tr>
     `;
-  }).join('');
+    })
+    .join('');
 
   // Fetch detailed status if recovering (to populate individual message statuses)
   if (initialStatus && currentExecutionId) {
@@ -881,7 +894,9 @@ async function updateTableStatusFromAPI(executionId) {
 
     if (result.success && result.data.messages) {
       result.data.messages.forEach(msg => {
-        const row = document.querySelector(`#broadcastStatusTable tr[data-contact-id="${msg.contact_id}"]`);
+        const row = document.querySelector(
+          `#broadcastStatusTable tr[data-contact-id="${msg.contact_id}"]`
+        );
         if (row) {
           const statusCell = row.querySelector('td:last-child');
           let statusBadge = '';
@@ -994,7 +1009,7 @@ async function handleImageSelect(event) {
 
   // Show preview
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = e => {
     document.getElementById('previewImg').src = e.target.result;
     document.getElementById('imagePreview').style.display = 'block';
   };

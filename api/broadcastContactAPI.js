@@ -10,7 +10,8 @@ class BroadcastContactAPI {
     try {
       let query = this.supabase
         .from('broadcast_contacts')
-        .select(`
+        .select(
+          `
           id,
           name,
           phone,
@@ -24,12 +25,15 @@ class BroadcastContactAPI {
             id,
             name
           )
-        `)
+        `
+        )
         .order('created_at', { ascending: false });
 
       // Apply filters
       if (filters.search) {
-        query = query.or(`name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+        query = query.or(
+          `name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%,email.ilike.%${filters.search}%`
+        );
       }
 
       if (filters.tier) {
@@ -55,7 +59,6 @@ class BroadcastContactAPI {
       }));
 
       return { success: true, data: formattedData };
-
     } catch (error) {
       console.error('❌ Error getting all contacts:', error.message);
       return { success: false, error: error.message };
@@ -67,20 +70,21 @@ class BroadcastContactAPI {
     try {
       const { data, error } = await this.supabase
         .from('broadcast_contacts')
-        .select(`
+        .select(
+          `
           *,
           contact_lists (
             id,
             name
           )
-        `)
+        `
+        )
         .eq('id', id)
         .single();
 
       if (error) throw error;
 
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error getting contact:', error.message);
       return { success: false, error: error.message };
@@ -150,7 +154,6 @@ class BroadcastContactAPI {
           count: insertedContacts.length
         }
       };
-
     } catch (error) {
       console.error('❌ Error creating contact list:', error.message);
       return { success: false, error: error.message };
@@ -179,7 +182,6 @@ class BroadcastContactAPI {
 
       console.log(`✅ Contact updated: ${id}`);
       return { success: true, data };
-
     } catch (error) {
       console.error('❌ Error updating contact:', error.message);
       return { success: false, error: error.message };
@@ -189,16 +191,12 @@ class BroadcastContactAPI {
   // Delete a single contact
   async deleteContact(id) {
     try {
-      const { error } = await this.supabase
-        .from('broadcast_contacts')
-        .delete()
-        .eq('id', id);
+      const { error } = await this.supabase.from('broadcast_contacts').delete().eq('id', id);
 
       if (error) throw error;
 
       console.log(`✅ Contact deleted: ${id}`);
       return { success: true, message: 'Contact deleted successfully' };
-
     } catch (error) {
       console.error('❌ Error deleting contact:', error.message);
       return { success: false, error: error.message };
@@ -212,16 +210,12 @@ class BroadcastContactAPI {
         throw new Error('Invalid or empty contact IDs array');
       }
 
-      const { error } = await this.supabase
-        .from('broadcast_contacts')
-        .delete()
-        .in('id', ids);
+      const { error } = await this.supabase.from('broadcast_contacts').delete().in('id', ids);
 
       if (error) throw error;
 
       console.log(`✅ Bulk deleted ${ids.length} contacts`);
       return { success: true, message: `${ids.length} contacts deleted successfully` };
-
     } catch (error) {
       console.error('❌ Error bulk deleting contacts:', error.message);
       return { success: false, error: error.message };
@@ -317,7 +311,6 @@ class BroadcastContactAPI {
       }
 
       return result;
-
     } catch (error) {
       console.error('❌ Error importing from CSV:', error.message);
       return { success: false, error: error.message };

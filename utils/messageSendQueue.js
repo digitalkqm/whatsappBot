@@ -59,7 +59,9 @@ class MessageSendQueue {
       // Sort by priority (critical first, low last)
       this.sortQueue();
 
-      console.log(`📥 Message queued [${priority}] - Queue size: ${this.queue.length} - ID: ${queueItem.id}`);
+      console.log(
+        `📥 Message queued [${priority}] - Queue size: ${this.queue.length} - ID: ${queueItem.id}`
+      );
 
       // Start processing if not already running
       this.processQueue();
@@ -103,7 +105,9 @@ class MessageSendQueue {
       const item = this.queue.shift();
 
       try {
-        console.log(`📨 Sending message [${item.priority}] to ${item.recipient.substring(0, 15)}... - ID: ${item.id}${item.retryCount > 0 ? ` (retry ${item.retryCount}/${item.maxRetries})` : ''}`);
+        console.log(
+          `📨 Sending message [${item.priority}] to ${item.recipient.substring(0, 15)}... - ID: ${item.id}${item.retryCount > 0 ? ` (retry ${item.retryCount}/${item.maxRetries})` : ''}`
+        );
 
         // Send message via WhatsApp client
         let result;
@@ -126,7 +130,6 @@ class MessageSendQueue {
 
         // Resolve promise
         item.resolve(result);
-
       } catch (error) {
         // Check if error is retryable
         const isRetryableError = this.isRetryableError(error);
@@ -137,8 +140,12 @@ class MessageSendQueue {
           item.retryCount++;
           const retryDelay = 2000 * item.retryCount; // Exponential backoff: 2s, 4s, 6s
 
-          console.warn(`⚠️ Retryable error for message [${item.priority}] - ID: ${item.id}: ${error.message}`);
-          console.log(`🔄 Will retry in ${retryDelay}ms (attempt ${item.retryCount}/${item.maxRetries})`);
+          console.warn(
+            `⚠️ Retryable error for message [${item.priority}] - ID: ${item.id}: ${error.message}`
+          );
+          console.log(
+            `🔄 Will retry in ${retryDelay}ms (attempt ${item.retryCount}/${item.maxRetries})`
+          );
 
           // Wait before retry
           await this.sleep(retryDelay);
@@ -155,9 +162,13 @@ class MessageSendQueue {
         this.stats.byPriority[item.priority].failed++;
 
         if (item.retryCount >= item.maxRetries) {
-          console.error(`❌ Max retries exceeded for message [${item.priority}] - ID: ${item.id}: ${error.message}`);
+          console.error(
+            `❌ Max retries exceeded for message [${item.priority}] - ID: ${item.id}: ${error.message}`
+          );
         } else {
-          console.error(`❌ Failed to send message [${item.priority}] - ID: ${item.id}: ${error.message}`);
+          console.error(
+            `❌ Failed to send message [${item.priority}] - ID: ${item.id}: ${error.message}`
+          );
         }
 
         // Reject promise
@@ -166,9 +177,14 @@ class MessageSendQueue {
 
       // Small delay between sends to avoid rate limiting by WhatsApp
       // Critical messages have shorter delay
-      const delay = item.priority === 'critical' ? 300 :
-                   item.priority === 'high' ? 500 :
-                   item.priority === 'normal' ? 700 : 1000;
+      const delay =
+        item.priority === 'critical'
+          ? 300
+          : item.priority === 'high'
+            ? 500
+            : item.priority === 'normal'
+              ? 700
+              : 1000;
 
       if (this.queue.length > 0) {
         await this.sleep(delay);
@@ -189,17 +205,17 @@ class MessageSendQueue {
 
     // Retryable error patterns
     const retryablePatterns = [
-      'detached Frame',           // Puppeteer frame detached
+      'detached Frame', // Puppeteer frame detached
       'Execution context was destroyed', // Page reloaded
-      'Session closed',           // Browser session issue
-      'Target closed',            // Browser target closed
-      'Protocol error',           // Connection issue
-      'Navigation failed',        // Page navigation issue
-      'net::ERR_',               // Network errors
-      'timeout',                 // Timeout errors
-      'ECONNRESET',             // Connection reset
-      'ETIMEDOUT',              // Timeout
-      'ENOTFOUND'               // DNS/network issue
+      'Session closed', // Browser session issue
+      'Target closed', // Browser target closed
+      'Protocol error', // Connection issue
+      'Navigation failed', // Page navigation issue
+      'net::ERR_', // Network errors
+      'timeout', // Timeout errors
+      'ECONNRESET', // Connection reset
+      'ETIMEDOUT', // Timeout
+      'ENOTFOUND' // DNS/network issue
     ];
 
     // Check if error matches any retryable pattern
@@ -289,9 +305,13 @@ class MessageSendQueue {
   getStats() {
     return {
       ...this.stats,
-      successRate: this.stats.totalSent > 0
-        ? ((this.stats.totalSent / (this.stats.totalSent + this.stats.totalFailed)) * 100).toFixed(2) + '%'
-        : '0%'
+      successRate:
+        this.stats.totalSent > 0
+          ? (
+              (this.stats.totalSent / (this.stats.totalSent + this.stats.totalFailed)) *
+              100
+            ).toFixed(2) + '%'
+          : '0%'
     };
   }
 }

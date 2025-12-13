@@ -60,7 +60,6 @@ class WorkflowEngine {
 
       console.log(`✅ Workflow completed: ${workflowName} (${executionId})`);
       return result;
-
     } catch (error) {
       console.error(`❌ Workflow failed: ${workflowName} (${executionId})`, error);
 
@@ -101,19 +100,19 @@ class WorkflowEngine {
   // Set workflow state
   async setWorkflowState(workflowName, key, value) {
     try {
-      const { error } = await this.supabase
-        .from('workflow_state')
-        .upsert({
+      const { error } = await this.supabase.from('workflow_state').upsert(
+        {
           workflow_name: workflowName,
           key,
           value,
           updated_at: new Date().toISOString()
-        }, {
+        },
+        {
           onConflict: 'workflow_name,key'
-        });
+        }
+      );
 
       if (error) throw error;
-
     } catch (err) {
       console.error(`Error setting workflow state: ${err.message}`);
       throw err;
