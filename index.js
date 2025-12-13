@@ -1578,10 +1578,11 @@ async function sendBroadcastNotification(phoneNumber, summary) {
     notificationMessage += `Broadcast ID: ${summary.broadcast_id}\n`;
     notificationMessage += `Completed at: ${summary.completed_at}`;
 
-    // Send via internal API
+    // Send via internal API with critical priority to bypass rate limiting
     const response = await axios.post(`${process.env.APP_URL || 'http://localhost:3000'}/send-message`, {
       jid,
-      message: notificationMessage
+      message: notificationMessage,
+      priority: 'critical'
     });
 
     if (response.status === 200) {
