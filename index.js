@@ -1622,7 +1622,6 @@ async function sendBroadcastNotification(phoneNumber, summary) {
       notificationMessage += `Phone: ${summary.last_sent_contact.phone}\n\n`;
     }
 
-    notificationMessage += `Broadcast ID: ${summary.broadcast_id}\n`;
     notificationMessage += `Completed at: ${summary.completed_at}`;
 
     // Send via internal API with critical priority to bypass rate limiting
@@ -1728,7 +1727,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       .from('broadcast_executions')
       .insert({
         broadcast_id: broadcastId,
-        name: `Interest Rate Broadcast ${new Date().toLocaleString()}`,
+        name: `Interest Rate Broadcast ${new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}`,
         status: 'running',
         total_contacts: contacts.length,
         current_index: 0,
@@ -1932,7 +1931,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             sent: successCount,
             failed: failedCount,
             last_sent_contact: lastSentContact,
-            completed_at: new Date().toLocaleString()
+            completed_at: new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })
           });
         }
       } catch (error) {
@@ -1974,7 +1973,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             sent: successCount,
             failed: failedCount,
             last_sent_contact: lastSentContact,
-            completed_at: new Date().toLocaleString()
+            completed_at: new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })
           });
         }
       }
