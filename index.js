@@ -590,9 +590,9 @@ function createWhatsAppClient() {
           '--renderer-process-limit=1',
           '--max-gum-fps=15',
 
-          // Disable unnecessary features to save memory
-          '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
-          '--disable-features=TranslateUI,BlinkGenPropertyTrees',
+          // Disable unnecessary features to save memory and prevent frame detachment
+          // CRITICAL: All features must be in ONE flag to work properly
+          '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process,TranslateUI,BlinkGenPropertyTrees',
           '--disable-background-networking',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
@@ -641,6 +641,14 @@ function setupClientEvents(c) {
   // Add error handler to prevent unhandled errors
   c.on('error', error => {
     log('error', `Client error: ${error.message}`);
+
+    // Handle detached frame errors specifically
+    if (error.message && error.message.includes('detached Frame')) {
+      log('warn', '⚠️ Detached Frame detected - this is usually recoverable via retry');
+      log('info', 'Frame detachment can occur when WhatsApp Web updates its UI');
+      // The MessageSendQueue already handles retries for this error type
+    }
+
     if (error.stack) {
       log('debug', `Stack trace: ${error.stack}`);
     }
@@ -978,6 +986,11 @@ process.on('unhandledRejection', (reason, promise) => {
   if (reason && reason.code === 'ENOENT' && reason.path && reason.path.includes('.wwebjs_auth')) {
     log('warn', `⚠️ Session directory error (non-critical): ${reason.path}`);
     log('info', 'This is expected on first runs or when session directory is incomplete');
+  }
+  // Handle detached Frame errors gracefully (can occur during WhatsApp Web UI updates)
+  else if (reason && reason.message && reason.message.includes('detached Frame')) {
+    log('warn', `⚠️ Detached Frame error (recoverable): ${reason.message}`);
+    log('info', 'This occurs when WhatsApp Web updates its UI - retry mechanism will handle it');
   } else {
     log('error', 'Unhandled Rejection at:', promise, 'reason:', reason);
   }
