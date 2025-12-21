@@ -1699,10 +1699,19 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
   }
 });
 
+// Helper function to get random delay based on mode
+function getRandomDelay(delayMode) {
+  const ranges = {
+    '1-2min': { min: 60000, max: 120000 }, // 1-2 minutes
+    '2-3min': { min: 120000, max: 180000 } // 2-3 minutes
+  };
+  const range = ranges[delayMode] || ranges['1-2min'];
+  return Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+}
+
 // Send interest rate broadcast to selected contacts
 app.post('/api/broadcast/interest-rate', async (req, res) => {
-  let { contacts, message, image_url, batch_size, delay_between_messages, notification_contact } =
-    req.body;
+  let { contacts, message, image_url, batch_size, delay_mode, notification_contact } = req.body;
 
   if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
     return res.status(400).json({ success: false, error: 'No contacts provided' });
@@ -1712,10 +1721,9 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Message cannot be empty' });
   }
 
-  // Enforce minimum delay of 15 seconds (15000ms)
-  if (!delay_between_messages || delay_between_messages < 15000) {
-    log('warn', `⚠️ Delay too short (${delay_between_messages}ms), enforcing 15s minimum`);
-    delay_between_messages = 15000;
+  // Validate delay_mode (default to 1-2min if not provided)
+  if (!delay_mode || !['1-2min', '2-3min'].includes(delay_mode)) {
+    delay_mode = '1-2min';
   }
 
   try {
@@ -1734,7 +1742,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
         sent_count: 0,
         failed_count: 0,
         batch_size: batch_size || 1,
-        delay_between_messages: delay_between_messages || 20000, // Default 20 seconds
+        delay_mode: delay_mode,
         message_content: message,
         message_template: message,
         image_url: image_url || null,
@@ -1768,7 +1776,6 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
 
     // Start broadcast in background (don't wait for completion)
     setTimeout(async () => {
-      const delayMs = delay_between_messages || 7000;
       let successCount = 0;
       let failedCount = 0;
       let lastSentContact = null; // Track the last successfully sent contact
@@ -1776,7 +1783,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       try {
         log(
           'info',
-          `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay: ${delayMs}ms)`
+          `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay mode: ${delay_mode})`
         );
 
         // Emit initial status via WebSocket
@@ -1890,9 +1897,11 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             }
           });
 
-          // Wait between messages (except for last message)
+          // Wait between messages (except for last message) with random delay
           if (i < contacts.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+            const randomDelay = getRandomDelay(delay_mode);
+            log('debug', `⏱️ Waiting ${Math.round(randomDelay / 1000)}s before next message`);
+            await new Promise(resolve => setTimeout(resolve, randomDelay));
           }
         }
 

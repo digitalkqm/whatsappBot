@@ -751,15 +751,7 @@ async function handleBroadcastSubmit(e) {
   e.preventDefault();
 
   const message = document.getElementById('broadcastMessage').value;
-  let delayBetween = parseInt(document.getElementById('delayBetween').value) || 20;
-
-  // Enforce minimum delay of 15 seconds
-  if (delayBetween < 15) {
-    showNotification('Delay must be at least 15 seconds. Using minimum value.', 'warning');
-    delayBetween = 15;
-    document.getElementById('delayBetween').value = 15;
-  }
-
+  const delayMode = document.querySelector('input[name="delayMode"]:checked').value;
   const notificationContact = document.getElementById('notificationContact').value.trim();
   const imageFile = document.getElementById('broadcastImageFile').files[0];
 
@@ -792,7 +784,7 @@ async function handleBroadcastSubmit(e) {
         })),
         message,
         image_url: imageUrl,
-        delay_between_messages: delayBetween * 1000,
+        delay_mode: delayMode,
         notification_contact: notificationContact || null
       })
     });

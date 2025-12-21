@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS broadcast_executions (
   current_batch INTEGER DEFAULT 1,
   total_batches INTEGER,
   batch_size INTEGER DEFAULT 10,
-  delay_between_messages INTEGER DEFAULT 7000, -- milliseconds
+  delay_mode TEXT DEFAULT '1-2min' CHECK (delay_mode IN ('1-2min', '2-3min')), -- Random delay range between messages
   delay_between_batches INTEGER DEFAULT 600000, -- milliseconds
 
   -- Notification
