@@ -504,6 +504,7 @@ const log = (level, message, ...args) => {
 
 // Global QR code storage for dashboard
 let currentQRCode = null;
+let qrGeneratedAt = null; // Timestamp when QR was generated
 
 // --- Session Management ---
 // Using LocalAuth with persistent disk storage on Render
@@ -670,10 +671,16 @@ function setupClientEvents(c) {
       // Only update and broadcast if QR code has changed
       if (currentQRCode !== newQRCode) {
         currentQRCode = newQRCode;
+        qrGeneratedAt = Date.now();
         log('info', '📱 New QR Code generated for dashboard');
 
-        // Broadcast to all WebSocket clients
-        broadcastToClients({ type: 'qr', qr: currentQRCode, timestamp: Date.now() });
+        // Broadcast to all WebSocket clients with generation timestamp
+        broadcastToClients({
+          type: 'qr',
+          qr: currentQRCode,
+          generatedAt: qrGeneratedAt,
+          timestamp: Date.now()
+        });
       } else {
         log('debug', '📱 QR Code unchanged, skipping broadcast');
       }
@@ -685,6 +692,7 @@ function setupClientEvents(c) {
   c.on('ready', async () => {
     log('info', '✅ WhatsApp client is ready.');
     currentQRCode = null; // Clear QR code when authenticated
+    qrGeneratedAt = null;
 
     // Set client reference for human behavior notifications
     humanBehavior.client = c;
@@ -1029,8 +1037,14 @@ app.get('/api/status', (_, res) => {
 app.get('/qr-code', async (_, res) => {
   try {
     if (currentQRCode) {
+      // Check if QR is stale (older than 25 seconds)
+      const qrAge = qrGeneratedAt ? Date.now() - qrGeneratedAt : 0;
+      const isStale = qrAge > 25000;
+
       res.status(200).json({
         qr: currentQRCode,
+        generatedAt: qrGeneratedAt,
+        isStale,
         authenticated: false,
         timestamp: Date.now()
       });
@@ -1039,6 +1053,7 @@ app.get('/qr-code', async (_, res) => {
       if (state === 'CONNECTED') {
         res.status(200).json({
           qr: null,
+          generatedAt: null,
           authenticated: true,
           state,
           timestamp: Date.now()
@@ -1046,6 +1061,7 @@ app.get('/qr-code', async (_, res) => {
       } else {
         res.status(200).json({
           qr: null,
+          generatedAt: null,
           authenticated: false,
           state,
           message: 'Waiting for QR code...',
@@ -1055,6 +1071,7 @@ app.get('/qr-code', async (_, res) => {
     } else {
       res.status(200).json({
         qr: null,
+        generatedAt: null,
         authenticated: false,
         message: 'Client not initialized',
         timestamp: Date.now()
@@ -2367,7 +2384,12 @@ wss.on('connection', ws => {
 
   // Send current QR code if available
   if (currentQRCode) {
-    ws.send(JSON.stringify({ type: 'qr', qr: currentQRCode }));
+    ws.send(JSON.stringify({
+      type: 'qr',
+      qr: currentQRCode,
+      generatedAt: qrGeneratedAt,
+      timestamp: Date.now()
+    }));
   }
 
   ws.on('close', () => {

@@ -4,7 +4,8 @@ let ws = null;
 let reconnectInterval = null;
 let qrExpiryTimer = null;
 let qrGeneratedTime = null;
-const QR_EXPIRY_SECONDS = 60; // QR codes typically expire in 60 seconds
+let currentQRGeneratedAt = null; // Track backend QR generation timestamp for deduplication
+const QR_EXPIRY_SECONDS = 25; // WhatsApp QR codes expire in ~20-30 seconds
 let totalMessageCount = 0; // Track total messages during session
 
 // Initialize dashboard
@@ -96,29 +97,37 @@ function handleWebSocketMessage(data) {
   if (data.type === 'qr') {
     console.log(
       'Received QR code via WebSocket',
-      data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : 'no timestamp'
+      data.generatedAt ? new Date(data.generatedAt).toLocaleTimeString() : 'no generatedAt'
     );
 
-    // Clear authentication state - re-authentication needed
-    localStorage.removeItem('whatsapp_authenticated');
-    console.log('Authentication state cleared - re-authentication required');
+    // Only update if this is a newer QR code
+    if (data.generatedAt && data.generatedAt !== currentQRGeneratedAt) {
+      console.log('New QR code detected, updating display');
+      currentQRGeneratedAt = data.generatedAt;
 
-    // Show QR section if it's hidden (re-authentication needed)
-    const qrSection = document.getElementById('qrSection');
-    const loggingSection = document.getElementById('loggingSection');
+      // Clear authentication state - re-authentication needed
+      localStorage.removeItem('whatsapp_authenticated');
+      console.log('Authentication state cleared - re-authentication required');
 
-    if (qrSection && qrSection.style.display === 'none') {
-      qrSection.style.display = 'block';
-      if (loggingSection) {
-        loggingSection.style.display = 'none';
+      // Show QR section if it's hidden (re-authentication needed)
+      const qrSection = document.getElementById('qrSection');
+      const loggingSection = document.getElementById('loggingSection');
+
+      if (qrSection && qrSection.style.display === 'none') {
+        qrSection.style.display = 'block';
+        if (loggingSection) {
+          loggingSection.style.display = 'none';
+        }
       }
+
+      // Hide logout button when QR is shown
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) logoutBtn.style.display = 'none';
+
+      displayQRCode(data.qr);
+    } else {
+      console.log('QR code unchanged (same generatedAt), skipping display update');
     }
-
-    // Hide logout button when QR is shown
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) logoutBtn.style.display = 'none';
-
-    displayQRCode(data.qr);
   } else if (data.type === 'authenticated') {
     console.log('Authentication in progress...');
     showAuthenticating();
@@ -188,8 +197,19 @@ async function fetchQRCode() {
 
     // Check authentication status first
     if (data.authenticated || data.state === 'CONNECTED') {
+      currentQRGeneratedAt = null;
       showAuthenticationSuccess();
+    } else if (data.qr && data.generatedAt) {
+      // Only display if it's a new QR code
+      if (data.generatedAt !== currentQRGeneratedAt) {
+        currentQRGeneratedAt = data.generatedAt;
+        displayQRCode(data.qr);
+      } else if (data.isStale) {
+        // Same QR but stale, show waiting for new one
+        showQRWaiting();
+      }
     } else if (data.qr) {
+      // Fallback for QR without generatedAt (shouldn't happen)
       displayQRCode(data.qr);
     } else {
       showQRWaiting();
@@ -221,8 +241,10 @@ async function checkQRStatus() {
     const data = await response.json();
 
     if (data.authenticated) {
+      currentQRGeneratedAt = null; // Clear tracking on auth
       showAuthenticationSuccess();
     } else if (data.state === 'CONNECTED') {
+      currentQRGeneratedAt = null; // Clear tracking on auth
       showAuthenticationSuccess();
     } else if (data.qr) {
       // Need to re-authenticate - show QR section
@@ -236,11 +258,15 @@ async function checkQRStatus() {
         }
       }
 
-      // New QR code available - update display
-      const currentQR = document.getElementById('qrCodeImage').src;
-      if (currentQR !== data.qr) {
-        console.log('New QR code detected, updating display');
+      // Check if this is a new QR code by comparing generatedAt timestamp
+      if (data.generatedAt && data.generatedAt !== currentQRGeneratedAt) {
+        console.log('New QR code detected via polling, updating display');
+        currentQRGeneratedAt = data.generatedAt;
         displayQRCode(data.qr);
+      } else if (data.isStale) {
+        // QR is stale but no new one available yet, show waiting state
+        console.log('QR code is stale, waiting for new one...');
+        showQRWaiting();
       }
     }
   } catch (error) {
@@ -363,6 +389,10 @@ function showAuthenticating() {
 
 // Show authentication success
 function showAuthenticationSuccess() {
+  // Clear QR tracking on successful auth
+  currentQRGeneratedAt = null;
+  clearQRExpiryTimer();
+
   // Save authentication state to localStorage for persistence
   localStorage.setItem('whatsapp_authenticated', 'true');
   console.log('Authentication state saved to localStorage');
@@ -642,8 +672,9 @@ async function logout() {
 function handleLogoutEvent() {
   console.log('Handling logout event - resetting UI');
 
-  // Clear authentication state
+  // Clear authentication state and QR tracking
   localStorage.removeItem('whatsapp_authenticated');
+  currentQRGeneratedAt = null;
 
   // Hide logout button
   const logoutBtn = document.getElementById('logoutBtn');
