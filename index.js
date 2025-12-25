@@ -594,6 +594,10 @@ function createWhatsAppClient() {
           // Disable unnecessary features to save memory and prevent frame detachment
           // CRITICAL: All features must be in ONE flag to work properly
           '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process,TranslateUI,BlinkGenPropertyTrees',
+          // Additional flags to prevent frame detachment during long-running operations
+          '--disable-site-isolation-trials',
+          '--disable-web-security',
+          '--disable-frame-rate-limit',
           '--disable-background-networking',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
@@ -757,7 +761,12 @@ function setupClientEvents(c) {
   c.on('auth_failure', async () => {
     log('error', '❌ Auth failed. Clearing session.');
     try {
-      await supabaseStore.delete({ session: SESSION_ID });
+      // Clear LocalAuth session directory
+      const sessionPath = path.join(__dirname, `.wwebjs_auth/session-${SESSION_ID}`);
+      if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+        log('info', 'LocalAuth session directory cleared');
+      }
       log('info', 'Session deleted. Will attempt to reinitialize...');
       client = null;
 
@@ -1194,38 +1203,6 @@ app.post('/send-message', async (req, res) => {
   } catch (err) {
     log('error', `Failed to send message: ${err.message}`);
     return res.status(500).json({
-      success: false,
-      error: err.message
-    });
-  }
-});
-
-// Enhanced session management endpoints
-app.post('/extract-session', async (req, res) => {
-  try {
-    let success = false;
-
-    // Try to extract from live client first
-    if (client) {
-      const extractedData = await extractSessionData(client);
-      if (extractedData) {
-        await supabaseStore.save({ sessionData: extractedData });
-        success = true;
-        log('info', 'Live session data extracted and saved');
-      }
-    }
-
-    // Fallback to local files if live extraction failed
-    if (!success) {
-      success = await supabaseStore.extractLocalSession();
-    }
-
-    res.status(200).json({
-      success,
-      message: success ? 'Session extracted and saved to Supabase' : 'No valid session found'
-    });
-  } catch (err) {
-    res.status(500).json({
       success: false,
       error: err.message
     });
@@ -1726,6 +1703,29 @@ function getRandomDelay(delayMode) {
   return Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
 }
 
+// Helper function to sleep with keep-alive pings to prevent frame detachment
+// Pings every 30 seconds during long delays to keep the WhatsApp Web frame active
+async function sleepWithKeepAlive(ms) {
+  const PING_INTERVAL = 30000; // Ping every 30 seconds
+  let elapsed = 0;
+
+  while (elapsed < ms) {
+    const sleepTime = Math.min(PING_INTERVAL, ms - elapsed);
+    await new Promise(resolve => setTimeout(resolve, sleepTime));
+    elapsed += sleepTime;
+
+    // Keep-alive ping if we still have more time to wait
+    if (elapsed < ms && client && client.pupPage) {
+      try {
+        await client.pupPage.evaluate(() => document.readyState);
+        log('debug', '🔄 Keep-alive ping successful');
+      } catch (err) {
+        log('warn', `⚠️ Keep-alive ping failed: ${err.message}`);
+      }
+    }
+  }
+}
+
 // Send interest rate broadcast to selected contacts
 app.post('/api/broadcast/interest-rate', async (req, res) => {
   let { contacts, message, image_url, batch_size, delay_mode, notification_contact } = req.body;
@@ -1915,10 +1915,11 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
           });
 
           // Wait between messages (except for last message) with random delay
+          // Uses keep-alive pings to prevent frame detachment during long delays
           if (i < contacts.length - 1) {
             const randomDelay = getRandomDelay(delay_mode);
             log('debug', `⏱️ Waiting ${Math.round(randomDelay / 1000)}s before next message`);
-            await new Promise(resolve => setTimeout(resolve, randomDelay));
+            await sleepWithKeepAlive(randomDelay);
           }
         }
 

@@ -17,6 +17,9 @@ class MessageSendQueue {
     this.client = client;
     this.queue = [];
     this.isProcessing = false;
+    this.consecutiveFrameErrors = 0;
+    this.maxConsecutiveFrameErrors = 3;
+    this.isRecovering = false;
     this.stats = {
       totalSent: 0,
       totalFailed: 0,
@@ -29,6 +32,72 @@ class MessageSendQueue {
     };
 
     console.log('📬 MessageSendQueue initialized');
+  }
+
+  /**
+   * Update client reference (for recovery after detached frame)
+   */
+  setClient(client) {
+    this.client = client;
+    this.consecutiveFrameErrors = 0;
+    console.log('🔄 MessageSendQueue client reference updated');
+  }
+
+  /**
+   * Keep the frame alive by performing a lightweight operation
+   * This prevents Chrome from garbage collecting the frame during long idle periods
+   */
+  async keepAlive() {
+    try {
+      if (this.client && this.client.pupPage) {
+        // Perform a lightweight operation to keep the frame active
+        await this.client.pupPage.evaluate(() => {
+          return document.readyState;
+        });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn(`⚠️ Keep-alive ping failed: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Check if the frame is healthy before sending
+   */
+  async checkFrameHealth() {
+    try {
+      if (!this.client || !this.client.pupPage) {
+        return false;
+      }
+      // Try to get page state - this will throw if frame is detached
+      const state = await this.client.getState();
+      return state === 'CONNECTED';
+    } catch (error) {
+      console.warn(`⚠️ Frame health check failed: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Sleep with keep-alive pings for long delays
+   * Pings every 30 seconds to prevent frame staleness
+   */
+  async sleepWithKeepAlive(ms) {
+    const PING_INTERVAL = 30000; // Ping every 30 seconds
+    let elapsed = 0;
+
+    while (elapsed < ms) {
+      const sleepTime = Math.min(PING_INTERVAL, ms - elapsed);
+      await this.sleep(sleepTime);
+      elapsed += sleepTime;
+
+      // Keep-alive ping if we still have more time to wait
+      if (elapsed < ms) {
+        await this.keepAlive();
+      }
+    }
   }
 
   /**
@@ -102,7 +171,22 @@ class MessageSendQueue {
     console.log(`📤 Processing queue - ${this.queue.length} messages waiting`);
 
     while (this.queue.length > 0) {
+      // Check if we need to attempt page recovery
+      if (this.consecutiveFrameErrors >= this.maxConsecutiveFrameErrors && !this.isRecovering) {
+        console.warn(`🔧 ${this.consecutiveFrameErrors} consecutive frame errors - attempting page recovery...`);
+        await this.attemptPageRecovery();
+      }
+
       const item = this.queue.shift();
+
+      // Proactive frame health check before sending (for first message or after long delays)
+      if (item.retryCount === 0) {
+        const isHealthy = await this.checkFrameHealth();
+        if (!isHealthy) {
+          console.warn('⚠️ Frame unhealthy before send - attempting proactive recovery...');
+          await this.attemptPageRecovery();
+        }
+      }
 
       try {
         console.log(
@@ -125,6 +209,7 @@ class MessageSendQueue {
         // Update stats
         this.stats.totalSent++;
         this.stats.byPriority[item.priority].sent++;
+        this.consecutiveFrameErrors = 0; // Reset on success
 
         console.log(`✅ Message sent [${item.priority}] - ID: ${item.id}`);
 
@@ -133,7 +218,13 @@ class MessageSendQueue {
       } catch (error) {
         // Check if error is retryable
         const isRetryableError = this.isRetryableError(error);
+        const isFrameError = this.isFrameError(error);
         const canRetry = item.retryCount < item.maxRetries;
+
+        // Track consecutive frame errors
+        if (isFrameError) {
+          this.consecutiveFrameErrors++;
+        }
 
         if (isRetryableError && canRetry) {
           // Retry the message
@@ -146,6 +237,12 @@ class MessageSendQueue {
           console.log(
             `🔄 Will retry in ${retryDelay}ms (attempt ${item.retryCount}/${item.maxRetries})`
           );
+
+          // If too many frame errors, attempt recovery before retry
+          if (isFrameError && this.consecutiveFrameErrors >= this.maxConsecutiveFrameErrors) {
+            console.warn('🔧 Too many frame errors - attempting page recovery before retry...');
+            await this.attemptPageRecovery();
+          }
 
           // Wait before retry
           await this.sleep(retryDelay);
@@ -222,6 +319,63 @@ class MessageSendQueue {
     return retryablePatterns.some(pattern =>
       errorMessage.toLowerCase().includes(pattern.toLowerCase())
     );
+  }
+
+  /**
+   * Check if error is specifically a frame error
+   * @param {Error} error - The error object
+   * @returns {boolean} True if error is frame-related
+   */
+  isFrameError(error) {
+    const errorMessage = error.message || '';
+    const framePatterns = [
+      'detached Frame',
+      'Execution context was destroyed',
+      'Target closed',
+      'Session closed'
+    ];
+    return framePatterns.some(pattern =>
+      errorMessage.toLowerCase().includes(pattern.toLowerCase())
+    );
+  }
+
+  /**
+   * Attempt to recover from frame errors by refreshing the page
+   */
+  async attemptPageRecovery() {
+    if (this.isRecovering) {
+      console.log('⏳ Recovery already in progress...');
+      return;
+    }
+
+    this.isRecovering = true;
+    console.log('🔧 Attempting page recovery...');
+
+    try {
+      // Try to get the puppeteer page and refresh it
+      if (this.client && this.client.pupPage) {
+        console.log('🔄 Refreshing WhatsApp Web page...');
+
+        // Wait a moment before refresh
+        await this.sleep(2000);
+
+        // Reload the page
+        await this.client.pupPage.reload({ waitUntil: 'networkidle0', timeout: 60000 });
+
+        // Wait for WhatsApp to fully load after refresh
+        await this.sleep(5000);
+
+        console.log('✅ Page refresh completed');
+        this.consecutiveFrameErrors = 0;
+      } else {
+        console.warn('⚠️ Cannot refresh - client or page not available');
+      }
+    } catch (error) {
+      console.error(`❌ Page recovery failed: ${error.message}`);
+      // Don't reset consecutiveFrameErrors - let it fail and caller can handle
+    } finally {
+      this.isRecovering = false;
+    }
   }
 
   /**
