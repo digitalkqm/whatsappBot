@@ -472,33 +472,6 @@ nav {
   }
 }
 
-/* QR Timer */
-.qr-timer {
-  text-align: center;
-  margin-top: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  font-size: 0.875rem;
-  transition: background-color 0.3s, color 0.3s;
-}
-
-.qr-timer.valid {
-  background: var(--success-light);
-  color: var(--success);
-}
-
-.qr-timer.warning {
-  background: var(--warning-light);
-  color: var(--warning);
-}
-
-.qr-timer.critical {
-  background: var(--danger-light);
-  color: var(--danger);
-  animation: pulse 0.5s infinite;
-}
-
 .qr-instructions {
   background: var(--gray-50);
   padding: var(--space-6);

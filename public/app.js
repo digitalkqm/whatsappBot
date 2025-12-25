@@ -2,9 +2,7 @@
 
 let ws = null;
 let reconnectInterval = null;
-let qrCountdownInterval = null; // Interval for countdown display
 let currentQRGeneratedAt = null; // Track backend QR generation timestamp for deduplication
-const QR_EXPIRY_SECONDS = 25; // WhatsApp QR codes expire in ~20-30 seconds
 let totalMessageCount = 0; // Track total messages during session
 
 // Initialize dashboard
@@ -123,7 +121,7 @@ function handleWebSocketMessage(data) {
       const logoutBtn = document.getElementById('logoutBtn');
       if (logoutBtn) logoutBtn.style.display = 'none';
 
-      displayQRCode(data.qr, data.generatedAt);
+      displayQRCode(data.qr);
     } else {
       console.log('QR code unchanged (same generatedAt), skipping display update');
     }
@@ -198,18 +196,18 @@ async function fetchQRCode() {
     if (data.authenticated || data.state === 'CONNECTED') {
       currentQRGeneratedAt = null;
       showAuthenticationSuccess();
-    } else if (data.qr && data.generatedAt) {
+    } else if (data.qr) {
       // Only display if it's a new QR code
-      if (data.generatedAt !== currentQRGeneratedAt) {
+      if (data.generatedAt && data.generatedAt !== currentQRGeneratedAt) {
         currentQRGeneratedAt = data.generatedAt;
-        displayQRCode(data.qr, data.generatedAt);
+        displayQRCode(data.qr);
+      } else if (!data.generatedAt) {
+        // Fallback for QR without generatedAt
+        displayQRCode(data.qr);
       } else if (data.isStale) {
         // Same QR but stale, show waiting for new one
         showQRWaiting();
       }
-    } else if (data.qr) {
-      // Fallback for QR without generatedAt (shouldn't happen)
-      displayQRCode(data.qr, null);
     } else {
       showQRWaiting();
     }
@@ -261,7 +259,7 @@ async function checkQRStatus() {
       if (data.generatedAt && data.generatedAt !== currentQRGeneratedAt) {
         console.log('New QR code detected via polling, updating display');
         currentQRGeneratedAt = data.generatedAt;
-        displayQRCode(data.qr, data.generatedAt);
+        displayQRCode(data.qr);
       } else if (data.isStale) {
         // QR is stale but no new one available yet, show waiting state
         console.log('QR code is stale, waiting for new one...');
@@ -273,80 +271,25 @@ async function checkQRStatus() {
   }
 }
 
-// Display QR code with countdown synced to backend generation time
-function displayQRCode(qrData, generatedAt) {
+// Display QR code - relies on backend events for refresh
+function displayQRCode(qrData) {
   const placeholder = document.getElementById('qrPlaceholder');
   const image = document.getElementById('qrCodeImage');
-  const timer = document.getElementById('qrTimer');
 
   image.src = qrData;
   image.style.display = 'block';
   placeholder.style.display = 'none';
-  if (timer) timer.style.display = 'block';
-
-  // Use backend generatedAt for accurate countdown, fallback to now
-  const qrTimestamp = generatedAt || Date.now();
-  startQRCountdown(qrTimestamp);
 
   // Update instructions to show active state
   updateQRInstructions('active');
-}
-
-// Start countdown timer synced with backend QR generation time
-function startQRCountdown(generatedAt) {
-  clearQRCountdown();
-
-  const updateCountdown = () => {
-    const elapsed = (Date.now() - generatedAt) / 1000;
-    const remaining = Math.max(0, Math.ceil(QR_EXPIRY_SECONDS - elapsed));
-
-    const timerEl = document.getElementById('qrTimer');
-    const timerText = document.getElementById('qrTimerText');
-
-    if (!timerEl || !timerText) return;
-
-    if (remaining <= 0) {
-      // QR expired
-      clearQRCountdown();
-      timerEl.style.display = 'none';
-      showQRExpired();
-      return;
-    }
-
-    // Update timer text and color based on remaining time
-    timerText.textContent = `Valid: ${remaining}s`;
-
-    if (remaining > 15) {
-      timerEl.className = 'qr-timer valid';
-    } else if (remaining > 7) {
-      timerEl.className = 'qr-timer warning';
-    } else {
-      timerEl.className = 'qr-timer critical';
-    }
-  };
-
-  // Run immediately, then every second
-  updateCountdown();
-  qrCountdownInterval = setInterval(updateCountdown, 1000);
-}
-
-// Clear countdown interval
-function clearQRCountdown() {
-  if (qrCountdownInterval) {
-    clearInterval(qrCountdownInterval);
-    qrCountdownInterval = null;
-  }
 }
 
 // Show QR loading state
 function showQRLoading() {
   const placeholder = document.getElementById('qrPlaceholder');
   const image = document.getElementById('qrCodeImage');
-  const timer = document.getElementById('qrTimer');
 
-  clearQRCountdown();
   image.style.display = 'none';
-  if (timer) timer.style.display = 'none';
   placeholder.style.display = 'flex';
   placeholder.className = 'qr-placeholder loading';
   placeholder.innerHTML = `
@@ -363,11 +306,8 @@ function showQRLoading() {
 function showQRWaiting() {
   const placeholder = document.getElementById('qrPlaceholder');
   const image = document.getElementById('qrCodeImage');
-  const timer = document.getElementById('qrTimer');
 
-  clearQRCountdown();
   image.style.display = 'none';
-  if (timer) timer.style.display = 'none';
   placeholder.style.display = 'flex';
   placeholder.className = 'qr-placeholder waiting';
   placeholder.innerHTML = `
@@ -384,11 +324,8 @@ function showQRWaiting() {
 function showQRExpired() {
   const placeholder = document.getElementById('qrPlaceholder');
   const image = document.getElementById('qrCodeImage');
-  const timer = document.getElementById('qrTimer');
 
-  clearQRCountdown();
   image.style.display = 'none';
-  if (timer) timer.style.display = 'none';
   placeholder.style.display = 'flex';
   placeholder.className = 'qr-placeholder expired';
   placeholder.innerHTML = `
@@ -408,11 +345,8 @@ function showQRExpired() {
 function showQRError(message) {
   const placeholder = document.getElementById('qrPlaceholder');
   const image = document.getElementById('qrCodeImage');
-  const timer = document.getElementById('qrTimer');
 
-  clearQRCountdown();
   image.style.display = 'none';
-  if (timer) timer.style.display = 'none';
   placeholder.style.display = 'flex';
   placeholder.className = 'qr-placeholder error';
   placeholder.innerHTML = `
@@ -429,11 +363,8 @@ function showQRError(message) {
 function showAuthenticating() {
   const placeholder = document.getElementById('qrPlaceholder');
   const image = document.getElementById('qrCodeImage');
-  const timer = document.getElementById('qrTimer');
 
-  clearQRCountdown();
   image.style.display = 'none';
-  if (timer) timer.style.display = 'none';
   placeholder.style.display = 'flex';
   placeholder.className = 'qr-placeholder authenticating';
   placeholder.innerHTML = `
@@ -451,7 +382,6 @@ function showAuthenticating() {
 function showAuthenticationSuccess() {
   // Clear QR tracking on successful auth
   currentQRGeneratedAt = null;
-  clearQRCountdown();
 
   // Save authentication state to localStorage for persistence
   localStorage.setItem('whatsapp_authenticated', 'true');
