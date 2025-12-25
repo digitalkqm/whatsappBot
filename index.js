@@ -2013,7 +2013,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
         broadcast_id: broadcastId,
         execution_id: execution.id,
         total: contacts.length,
-        delay_between_messages
+        delay_mode
       }
     });
   } catch (error) {
