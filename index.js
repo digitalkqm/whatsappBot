@@ -2421,6 +2421,9 @@ const runWatchdog = async () => {
       // Session is already saved after authentication and ready events
       // Periodic saves are unnecessary and can cause frame detachment during message sends
       log('debug', '✅ Watchdog: Connection healthy, session management handled by events');
+    } else if (currentQRCode) {
+      // Waiting for QR scan - null state is expected, don't restart
+      log('info', '✅ Watchdog: Client waiting for QR scan, state null is expected');
     } else {
       log('warn', `⚠️ Watchdog detected bad state "${state}". Restarting client...`);
       await client.destroy();
