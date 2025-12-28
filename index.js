@@ -1547,6 +1547,56 @@ app.get('/api/broadcast-contacts', async (req, res) => {
   res.status(result.success ? 200 : 400).json(result);
 });
 
+// Get contacts with their last broadcast status (must be before /:id route)
+app.get('/api/broadcast-contacts/with-status', async (req, res) => {
+  try {
+    // Get the most recent completed broadcast execution
+    const { data: lastExecution, error: execError } = await supabase
+      .from('broadcast_executions')
+      .select('id')
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (execError || !lastExecution) {
+      // No completed broadcasts, return empty
+      return res.json({
+        success: true,
+        data: [],
+        last_broadcast_id: null
+      });
+    }
+
+    // Get message statuses for the last broadcast
+    const { data: messages, error: msgError } = await supabase
+      .from('broadcast_messages')
+      .select('contact_id, status, error_message, sent_at, failed_at')
+      .eq('execution_id', lastExecution.id);
+
+    if (msgError) {
+      log('error', `Error fetching message statuses: ${msgError.message}`);
+    }
+
+    // Create array of contact statuses
+    const contactStatuses = (messages || []).map(msg => ({
+      contact_id: msg.contact_id,
+      status: msg.status,
+      error_message: msg.error_message,
+      timestamp: msg.sent_at || msg.failed_at
+    }));
+
+    res.json({
+      success: true,
+      data: contactStatuses,
+      last_broadcast_id: lastExecution.id
+    });
+  } catch (error) {
+    log('error', `Error fetching contacts with status: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get a single broadcast contact
 app.get('/api/broadcast-contacts/:id', async (req, res) => {
   const result = await broadcastContactAPI.getContact(req.params.id);
@@ -2239,56 +2289,6 @@ app.get('/api/broadcast/history', async (req, res) => {
     });
   } catch (error) {
     log('error', `❌ Error fetching broadcast history: ${error.message}`);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get contacts with their last broadcast status
-app.get('/api/broadcast-contacts/with-status', async (req, res) => {
-  try {
-    // Get the most recent completed broadcast execution
-    const { data: lastExecution, error: execError } = await supabase
-      .from('broadcast_executions')
-      .select('id')
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (execError || !lastExecution) {
-      // No completed broadcasts, return empty
-      return res.json({
-        success: true,
-        data: [],
-        last_broadcast_id: null
-      });
-    }
-
-    // Get message statuses for the last broadcast
-    const { data: messages, error: msgError } = await supabase
-      .from('broadcast_messages')
-      .select('contact_id, status, error_message, sent_at, failed_at')
-      .eq('execution_id', lastExecution.id);
-
-    if (msgError) {
-      log('error', `Error fetching message statuses: ${msgError.message}`);
-    }
-
-    // Create array of contact statuses
-    const contactStatuses = (messages || []).map(msg => ({
-      contact_id: msg.contact_id,
-      status: msg.status,
-      error_message: msg.error_message,
-      timestamp: msg.sent_at || msg.failed_at
-    }));
-
-    res.json({
-      success: true,
-      data: contactStatuses,
-      last_broadcast_id: lastExecution.id
-    });
-  } catch (error) {
-    log('error', `Error fetching contacts with status: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 });
