@@ -178,6 +178,63 @@
       color: #1e40af;
     }
 
+    /* Success Rate Badges */
+    .success-rate-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .success-rate-high {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .success-rate-medium {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .success-rate-low {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    /* Broadcast Status Badges */
+    .broadcast-status-completed {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .broadcast-status-running {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .broadcast-status-failed {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .broadcast-status-paused {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    /* Sent/Failed Count Cells */
+    .sent-count {
+      color: #16a34a;
+      font-weight: 600;
+    }
+
+    .failed-count {
+      color: #dc2626;
+      font-weight: 600;
+    }
+
     .action-buttons {
       display: flex;
       gap: 0.5rem;
@@ -465,6 +522,12 @@
               <option value="Premium">Premium</option>
               <option value="Standard">Standard</option>
             </select>
+            <select id="lastBroadcastStatusFilter" class="form-control" style="min-width: 160px;">
+              <option value="">Last Broadcast: All</option>
+              <option value="sent">Sent Only</option>
+              <option value="failed">Failed Only</option>
+              <option value="not_included">Not Included</option>
+            </select>
             <div class="search-box">
               <input type="text" id="searchInput" placeholder="Search contacts..." />
             </div>
@@ -483,13 +546,14 @@
               <th>Phone</th>
               <th>Email</th>
               <th>Tier</th>
+              <th>Last Broadcast</th>
               <th>List</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="contactsTableBody">
             <tr>
-              <td colspan="7" class="empty-state">
+              <td colspan="8" class="empty-state">
                 <div class="empty-state-icon">📭</div>
                 <p>No contacts found. Create a contact list or upload contacts to get started.</p>
               </td>
@@ -502,6 +566,39 @@
           <span class="page-info">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
           <button id="nextPage">Next →</button>
         </div>
+      </div>
+
+      <!-- Broadcast History Section -->
+      <div class="contacts-container" style="margin-top: 2rem;">
+        <h2 style="margin-bottom: 1rem; color: #334155; display: flex; align-items: center; gap: 0.5rem;">
+          📊 Broadcast History
+          <button class="btn btn-secondary" style="margin-left: auto; font-size: 0.85rem; padding: 0.5rem 1rem;" onclick="loadBroadcastHistory()">
+            🔄 Refresh
+          </button>
+        </h2>
+
+        <table class="contacts-table" id="broadcastHistoryTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Name</th>
+              <th>Total</th>
+              <th>Sent</th>
+              <th>Failed</th>
+              <th>Success Rate</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="broadcastHistoryBody">
+            <tr>
+              <td colspan="8" class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                <p>No broadcast history yet.</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </main>
   </div>
@@ -811,6 +908,63 @@
 
         <div class="form-actions" style="margin-top: 1.5rem;">
           <button type="button" class="btn btn-primary" onclick="closeBroadcastProgress()" id="closeProgressBtn" disabled>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Broadcast Details Modal -->
+  <div id="broadcastDetailsModal" class="modal">
+    <div class="modal-content" style="max-width: 1000px;">
+      <div class="modal-header">
+        <h2>📋 Broadcast Details</h2>
+        <button class="close-modal" onclick="closeBroadcastDetails()">×</button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <!-- Summary Stats -->
+        <div id="broadcastDetailsSummary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <!-- Filter Controls -->
+        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+          <label style="font-weight: 500;">Filter by Status:</label>
+          <select id="messageStatusFilter" onchange="filterBroadcastMessages()" class="form-control" style="width: auto;">
+            <option value="">All</option>
+            <option value="sent">Sent Only</option>
+            <option value="failed">Failed Only</option>
+            <option value="pending">Pending</option>
+          </select>
+          <span id="filteredCount" style="color: #64748b; font-size: 0.9rem;"></span>
+        </div>
+
+        <!-- Messages Table -->
+        <div style="max-height: 500px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <table class="contacts-table" style="margin: 0;">
+            <thead style="position: sticky; top: 0; background: white; z-index: 10;">
+              <tr>
+                <th style="width: 5%;">#</th>
+                <th style="width: 20%;">Contact</th>
+                <th style="width: 15%;">Phone</th>
+                <th style="width: 12%;">Status</th>
+                <th style="width: 18%;">Timestamp</th>
+                <th style="width: 30%;">Error Message</th>
+              </tr>
+            </thead>
+            <tbody id="broadcastMessagesTable">
+              <!-- Populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="form-actions" style="margin-top: 1.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="exportFailedContacts()" id="exportFailedBtn" style="display: none;">
+            📥 Export Failed Contacts
+          </button>
+          <button type="button" class="btn btn-primary" onclick="closeBroadcastDetails()">
             Close
           </button>
         </div>

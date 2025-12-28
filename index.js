@@ -1599,24 +1599,50 @@ async function sendBroadcastNotification(phoneNumber, summary) {
     let notificationMessage = `📢 *Broadcast Summary*\n\n`;
 
     if (summary.status === 'completed') {
-      notificationMessage += `Status: ✅ Completed\n`;
+      notificationMessage += `✅ *Status: Completed*\n\n`;
     } else if (summary.status === 'failed') {
-      notificationMessage += `Status: ❌ Failed\n`;
+      notificationMessage += `❌ *Status: Failed*\n\n`;
     } else if (summary.status === 'disrupted') {
-      notificationMessage += `Status: ⚠️ Disrupted\n`;
+      notificationMessage += `⚠️ *Status: Disrupted*\n\n`;
     }
 
-    notificationMessage += `Total Contacts: ${summary.total}\n`;
-    notificationMessage += `Successfully Sent: ${summary.sent}\n`;
-    notificationMessage += `Failed: ${summary.failed}\n\n`;
+    // Calculate success rate
+    const successRate = summary.total > 0
+      ? ((summary.sent / summary.total) * 100).toFixed(1)
+      : 0;
+
+    notificationMessage += `📊 *Statistics:*\n`;
+    notificationMessage += `• Total Contacts: ${summary.total}\n`;
+    notificationMessage += `• Successfully Sent: ${summary.sent}\n`;
+    notificationMessage += `• Failed: ${summary.failed}\n`;
+    notificationMessage += `• Success Rate: ${successRate}%\n\n`;
+
+    // Include failed contacts if any (up to 10)
+    if (summary.failed_contacts && summary.failed_contacts.length > 0) {
+      notificationMessage += `❌ *Failed Contacts:*\n`;
+      const failedToShow = summary.failed_contacts.slice(0, 10);
+      failedToShow.forEach(contact => {
+        notificationMessage += `• ${contact.name || 'Unknown'} (${contact.phone})`;
+        if (contact.error) {
+          notificationMessage += ` - ${contact.error}`;
+        }
+        notificationMessage += `\n`;
+      });
+      if (summary.failed_contacts.length > 10) {
+        const remaining = summary.failed_contacts.length - 10;
+        notificationMessage += `• ...and ${remaining} more\n`;
+      }
+      notificationMessage += `\n`;
+    }
 
     // Include last sent contact if available
     if (summary.last_sent_contact) {
-      notificationMessage += `Last Sent To: ${summary.last_sent_contact.name}\n`;
-      notificationMessage += `Phone: ${summary.last_sent_contact.phone}\n\n`;
+      notificationMessage += `📤 *Last Sent To:*\n`;
+      notificationMessage += `• ${summary.last_sent_contact.name}\n`;
+      notificationMessage += `• ${summary.last_sent_contact.phone}\n\n`;
     }
 
-    notificationMessage += `Completed at: ${summary.completed_at}`;
+    notificationMessage += `🕐 Completed at: ${summary.completed_at}`;
 
     // Send via internal API with critical priority to bypass rate limiting
     const response = await axios.post(
@@ -1852,6 +1878,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       let lastSentContact = null; // Track the last successfully sent contact
       const breakConfig = getBreakConfig(break_mode); // Get break configuration
       let messagesSinceLastBreak = 0; // Track messages since last break
+      const failedContacts = []; // Track failed contacts for notification
 
       try {
         log(
@@ -1923,11 +1950,13 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             } else {
               failedCount++;
               errorMessage = 'Failed to send message';
+              failedContacts.push({ name: contact.name, phone: contact.phone, error: errorMessage });
               log('error', `❌ Failed to send to ${contact.name} (${contact.phone})`);
             }
           } catch (error) {
             failedCount++;
             errorMessage = error.message;
+            failedContacts.push({ name: contact.name, phone: contact.phone, error: error.message.substring(0, 50) });
             log('error', `❌ Error sending to ${contact.name}: ${error.message}`);
           }
 
@@ -2052,6 +2081,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             total: contacts.length,
             sent: successCount,
             failed: failedCount,
+            failed_contacts: failedContacts,
             last_sent_contact: lastSentContact,
             completed_at: new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })
           });
@@ -2094,6 +2124,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             total: contacts.length,
             sent: successCount,
             failed: failedCount,
+            failed_contacts: failedContacts,
             last_sent_contact: lastSentContact,
             completed_at: new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })
           });
@@ -2208,6 +2239,56 @@ app.get('/api/broadcast/history', async (req, res) => {
     });
   } catch (error) {
     log('error', `❌ Error fetching broadcast history: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get contacts with their last broadcast status
+app.get('/api/broadcast-contacts/with-status', async (req, res) => {
+  try {
+    // Get the most recent completed broadcast execution
+    const { data: lastExecution, error: execError } = await supabase
+      .from('broadcast_executions')
+      .select('id')
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (execError || !lastExecution) {
+      // No completed broadcasts, return empty
+      return res.json({
+        success: true,
+        data: [],
+        last_broadcast_id: null
+      });
+    }
+
+    // Get message statuses for the last broadcast
+    const { data: messages, error: msgError } = await supabase
+      .from('broadcast_messages')
+      .select('contact_id, status, error_message, sent_at, failed_at')
+      .eq('execution_id', lastExecution.id);
+
+    if (msgError) {
+      log('error', `Error fetching message statuses: ${msgError.message}`);
+    }
+
+    // Create array of contact statuses
+    const contactStatuses = (messages || []).map(msg => ({
+      contact_id: msg.contact_id,
+      status: msg.status,
+      error_message: msg.error_message,
+      timestamp: msg.sent_at || msg.failed_at
+    }));
+
+    res.json({
+      success: true,
+      data: contactStatuses,
+      last_broadcast_id: lastExecution.id
+    });
+  } catch (error) {
+    log('error', `Error fetching contacts with status: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 });

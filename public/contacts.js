@@ -12,9 +12,18 @@ let broadcastWs = null;
 // Track uploaded image URL for broadcast
 let uploadedImageUrl = null;
 
+// Store last broadcast status map for contact filtering
+let lastBroadcastStatusMap = new Map();
+
+// Store current broadcast messages for details modal
+let detailsBroadcastMessages = [];
+let detailsBroadcastExecutionId = null;
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
   await loadAllContacts();
+  await loadLastBroadcastStatus();
+  await loadBroadcastHistory();
   setupEventListeners();
   setupCSVUpload();
   setupBroadcastWebSocket();
@@ -37,6 +46,9 @@ function setupEventListeners() {
 
   // Tier filter
   document.getElementById('tierFilter').addEventListener('change', handleTierFilter);
+
+  // Last broadcast status filter
+  document.getElementById('lastBroadcastStatusFilter').addEventListener('change', handleStatusFilter);
 
   // Select all checkbox
   document.getElementById('selectAll').addEventListener('change', handleSelectAll);
@@ -79,7 +91,7 @@ function renderContacts() {
   if (filteredContacts.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty-state">
+        <td colspan="8" class="empty-state">
           <div class="empty-state-icon">📭</div>
           <p>No contacts found. Try adjusting your filters or create a new contact list.</p>
         </td>
@@ -97,8 +109,21 @@ function renderContacts() {
 
   // Render table rows
   tbody.innerHTML = pageContacts
-    .map(
-      contact => `
+    .map(contact => {
+      // Get last broadcast status for this contact
+      const lastStatus = lastBroadcastStatusMap.get(contact.id);
+      let statusBadge = '<span style="color: #9ca3af; font-size: 0.8rem;">-</span>';
+
+      if (lastStatus) {
+        if (lastStatus.status === 'sent') {
+          statusBadge = '<span class="status-badge status-sent" style="font-size: 0.75rem;">✅ Sent</span>';
+        } else if (lastStatus.status === 'failed') {
+          const errorTitle = lastStatus.error_message ? escapeHtml(lastStatus.error_message) : '';
+          statusBadge = `<span class="status-badge status-failed" style="font-size: 0.75rem;" title="${errorTitle}">❌ Failed</span>`;
+        }
+      }
+
+      return `
     <tr data-contact-id="${contact.id}">
       <td class="checkbox-cell">
         <input type="checkbox"
@@ -122,6 +147,9 @@ function renderContacts() {
         </span>
       </td>
       <td>
+        ${statusBadge}
+      </td>
+      <td>
         <small style="color: #64748b;">${escapeHtml(contact.list_name || '-')}</small>
       </td>
       <td>
@@ -135,8 +163,8 @@ function renderContacts() {
         </div>
       </td>
     </tr>
-  `
-    )
+  `;
+    })
     .join('');
 
   // Update pagination
@@ -212,19 +240,53 @@ function updateBulkActionsUI() {
 
 // Handle search
 function handleSearch(event) {
-  const query = event.target.value.toLowerCase().trim();
+  const searchQuery = event.target.value.toLowerCase().trim();
+  const tierFilter = document.getElementById('tierFilter').value;
+  const statusFilter = document.getElementById('lastBroadcastStatusFilter').value;
+  applyAllFilters(searchQuery, tierFilter, statusFilter);
+}
 
-  if (!query) {
-    filteredContacts = [...allContacts];
-  } else {
-    filteredContacts = allContacts.filter(contact => {
+// Handle status filter change
+function handleStatusFilter(event) {
+  const statusFilter = event.target.value;
+  const tierFilter = document.getElementById('tierFilter').value;
+  const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+  applyAllFilters(searchQuery, tierFilter, statusFilter);
+}
+
+// Apply all filters together
+function applyAllFilters(searchQuery = '', tierFilter = '', statusFilter = '') {
+  filteredContacts = allContacts.filter(contact => {
+    // Search filter
+    if (searchQuery) {
       const name = (contact.name || '').toLowerCase();
       const phone = (contact.phone || '').toLowerCase();
       const email = (contact.email || '').toLowerCase();
+      if (!name.includes(searchQuery) && !phone.includes(searchQuery) && !email.includes(searchQuery)) {
+        return false;
+      }
+    }
 
-      return name.includes(query) || phone.includes(query) || email.includes(query);
-    });
-  }
+    // Tier filter
+    if (tierFilter && (contact.tier || 'Standard') !== tierFilter) {
+      return false;
+    }
+
+    // Last broadcast status filter
+    if (statusFilter) {
+      const contactStatus = lastBroadcastStatusMap.get(contact.id);
+
+      if (statusFilter === 'sent') {
+        if (!contactStatus || contactStatus.status !== 'sent') return false;
+      } else if (statusFilter === 'failed') {
+        if (!contactStatus || contactStatus.status !== 'failed') return false;
+      } else if (statusFilter === 'not_included') {
+        if (contactStatus) return false;
+      }
+    }
+
+    return true;
+  });
 
   currentPage = 1;
   renderContacts();
@@ -232,16 +294,10 @@ function handleSearch(event) {
 
 // Handle tier filter
 function handleTierFilter(event) {
-  const tier = event.target.value;
-
-  if (!tier) {
-    filteredContacts = [...allContacts];
-  } else {
-    filteredContacts = allContacts.filter(contact => (contact.tier || 'Standard') === tier);
-  }
-
-  currentPage = 1;
-  renderContacts();
+  const tierFilter = event.target.value;
+  const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+  const statusFilter = document.getElementById('lastBroadcastStatusFilter').value;
+  applyAllFilters(searchQuery, tierFilter, statusFilter);
 }
 
 // Change page
@@ -1088,3 +1144,245 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// ===== BROADCAST HISTORY & STATUS FUNCTIONS =====
+
+// Load last broadcast contact statuses
+async function loadLastBroadcastStatus() {
+  try {
+    const response = await fetch('/api/broadcast-contacts/with-status');
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      lastBroadcastStatusMap.clear();
+      result.data.forEach(item => {
+        lastBroadcastStatusMap.set(item.contact_id, {
+          status: item.status,
+          error_message: item.error_message,
+          timestamp: item.timestamp
+        });
+      });
+    }
+  } catch (error) {
+    console.error('Error loading last broadcast status:', error);
+  }
+}
+
+// Load broadcast history
+async function loadBroadcastHistory() {
+  try {
+    const response = await fetch('/api/broadcast/history?limit=20');
+    const result = await response.json();
+
+    const tbody = document.getElementById('broadcastHistoryBody');
+
+    if (!result.success || !result.data || result.data.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p>No broadcast history yet.</p>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = result.data.map(exec => {
+      const date = new Date(exec.started_at).toLocaleString('en-SG', {
+        timeZone: 'Asia/Singapore',
+        dateStyle: 'short',
+        timeStyle: 'short'
+      });
+
+      const successRate = exec.success_rate || 0;
+      const successRateClass = successRate >= 90
+        ? 'success-rate-high'
+        : successRate >= 70
+          ? 'success-rate-medium'
+          : 'success-rate-low';
+
+      const statusClass = `broadcast-status-${exec.status}`;
+
+      return `
+        <tr data-execution-id="${exec.id}">
+          <td><small>${date}</small></td>
+          <td>${escapeHtml(exec.name || 'Unnamed Broadcast')}</td>
+          <td>${exec.total_contacts || 0}</td>
+          <td class="sent-count">✅ ${exec.sent_count || 0}</td>
+          <td class="failed-count">❌ ${exec.failed_count || 0}</td>
+          <td>
+            <span class="success-rate-badge ${successRateClass}">
+              ${successRate.toFixed(0)}%
+            </span>
+          </td>
+          <td>
+            <span class="status-badge ${statusClass}">
+              ${exec.status.charAt(0).toUpperCase() + exec.status.slice(1)}
+            </span>
+          </td>
+          <td>
+            <button class="icon-btn" onclick="viewBroadcastDetails('${exec.id}')" title="View Details">
+              👁️
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Error loading broadcast history:', error);
+    showNotification('Error loading broadcast history', 'error');
+  }
+}
+
+// View broadcast details
+async function viewBroadcastDetails(executionId) {
+  try {
+    const response = await fetch(`/api/broadcast/status/${executionId}`);
+    const result = await response.json();
+
+    if (!result.success) {
+      showNotification('Failed to load broadcast details', 'error');
+      return;
+    }
+
+    detailsBroadcastExecutionId = executionId;
+    detailsBroadcastMessages = result.data.messages || [];
+
+    const exec = result.data.execution;
+    const summary = result.data.summary;
+
+    // Render summary stats
+    const summaryDiv = document.getElementById('broadcastDetailsSummary');
+    summaryDiv.innerHTML = `
+      <div style="padding: 1rem; background: #f0f9ff; border-radius: 8px; text-align: center;">
+        <div style="font-size: 1.5rem; font-weight: bold; color: #0284c7;">${summary.total || 0}</div>
+        <div style="color: #64748b; font-size: 0.875rem;">Total Contacts</div>
+      </div>
+      <div style="padding: 1rem; background: #f0fdf4; border-radius: 8px; text-align: center;">
+        <div style="font-size: 1.5rem; font-weight: bold; color: #16a34a;">${summary.sent || 0}</div>
+        <div style="color: #64748b; font-size: 0.875rem;">Sent</div>
+      </div>
+      <div style="padding: 1rem; background: #fef2f2; border-radius: 8px; text-align: center;">
+        <div style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">${summary.failed || 0}</div>
+        <div style="color: #64748b; font-size: 0.875rem;">Failed</div>
+      </div>
+      <div style="padding: 1rem; background: #f8fafc; border-radius: 8px; text-align: center;">
+        <div style="font-size: 1.5rem; font-weight: bold; color: #334155;">${(exec.success_rate || 0).toFixed(0)}%</div>
+        <div style="color: #64748b; font-size: 0.875rem;">Success Rate</div>
+      </div>
+    `;
+
+    // Show/hide export button based on failed count
+    document.getElementById('exportFailedBtn').style.display =
+      (summary.failed || 0) > 0 ? 'inline-flex' : 'none';
+
+    // Reset filter and render messages
+    document.getElementById('messageStatusFilter').value = '';
+    renderBroadcastMessages(detailsBroadcastMessages);
+
+    // Show modal
+    document.getElementById('broadcastDetailsModal').classList.add('active');
+  } catch (error) {
+    console.error('Error loading broadcast details:', error);
+    showNotification('Error loading broadcast details', 'error');
+  }
+}
+
+// Render broadcast messages table
+function renderBroadcastMessages(messages) {
+  const tbody = document.getElementById('broadcastMessagesTable');
+
+  if (!messages || messages.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="empty-state">
+          <p>No messages found.</p>
+        </td>
+      </tr>
+    `;
+    document.getElementById('filteredCount').textContent = '';
+    return;
+  }
+
+  document.getElementById('filteredCount').textContent = `Showing ${messages.length} of ${detailsBroadcastMessages.length}`;
+
+  tbody.innerHTML = messages.map((msg, index) => {
+    const statusClass = `status-${msg.status}`;
+    const statusIcon = msg.status === 'sent' ? '✅' :
+                       msg.status === 'failed' ? '❌' :
+                       msg.status === 'sending' ? '🔄' : '⏳';
+
+    const timestamp = msg.sent_at || msg.failed_at || msg.queued_at;
+    const formattedTime = timestamp
+      ? new Date(timestamp).toLocaleString('en-SG', {
+          timeZone: 'Asia/Singapore',
+          dateStyle: 'short',
+          timeStyle: 'short'
+        })
+      : '-';
+
+    return `
+      <tr>
+        <td>${msg.send_order || index + 1}</td>
+        <td>${escapeHtml(msg.recipient_name || 'Unknown')}</td>
+        <td style="font-family: monospace;">${escapeHtml(msg.recipient_phone)}</td>
+        <td>
+          <span class="status-badge ${statusClass}">
+            ${statusIcon} ${msg.status.charAt(0).toUpperCase() + msg.status.slice(1)}
+          </span>
+        </td>
+        <td><small>${formattedTime}</small></td>
+        <td>
+          ${msg.error_message
+            ? `<span style="color: #dc2626; font-size: 0.85rem;">${escapeHtml(msg.error_message)}</span>`
+            : '<span style="color: #9ca3af;">-</span>'
+          }
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// Filter broadcast messages by status
+function filterBroadcastMessages() {
+  const filter = document.getElementById('messageStatusFilter').value;
+
+  if (!filter) {
+    renderBroadcastMessages(detailsBroadcastMessages);
+    return;
+  }
+
+  const filtered = detailsBroadcastMessages.filter(msg => msg.status === filter);
+  renderBroadcastMessages(filtered);
+}
+
+// Export failed contacts to CSV
+function exportFailedContacts() {
+  const failed = detailsBroadcastMessages.filter(msg => msg.status === 'failed');
+
+  if (failed.length === 0) {
+    showNotification('No failed contacts to export', 'info');
+    return;
+  }
+
+  const csvContent = 'Name,Phone,Error Message\n' +
+    failed.map(msg =>
+      `"${msg.recipient_name || ''}","${msg.recipient_phone}","${(msg.error_message || '').replace(/"/g, '""')}"`
+    ).join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `failed_contacts_${detailsBroadcastExecutionId}.csv`;
+  link.click();
+
+  showNotification(`Exported ${failed.length} failed contacts`, 'success');
+}
+
+// Close broadcast details modal
+function closeBroadcastDetails() {
+  document.getElementById('broadcastDetailsModal').classList.remove('active');
+  detailsBroadcastMessages = [];
+  detailsBroadcastExecutionId = null;
+}
