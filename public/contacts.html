@@ -716,6 +716,34 @@
           <small>Random delay between each message to avoid rate limiting</small>
         </div>
 
+        <div class="form-group">
+          <label>Break Interval (Long Pause)</label>
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem;">
+            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; transition: all 0.2s;">
+              <input type="radio" name="breakMode" value="40msg-2-3hr" checked style="width: 18px; height: 18px;">
+              <div>
+                <span style="font-weight: 500;">Every 40 messages: 2-3 hour break</span>
+                <small style="display: block; color: #64748b; margin-top: 2px;">Recommended for safer bulk sending</small>
+              </div>
+            </label>
+            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; transition: all 0.2s;">
+              <input type="radio" name="breakMode" value="50msg-4-5hr" style="width: 18px; height: 18px;">
+              <div>
+                <span style="font-weight: 500;">Every 50 messages: 4-5 hour break</span>
+                <small style="display: block; color: #64748b; margin-top: 2px;">Longer breaks for extra safety</small>
+              </div>
+            </label>
+            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; transition: all 0.2s;">
+              <input type="radio" name="breakMode" value="none" style="width: 18px; height: 18px;">
+              <div>
+                <span style="font-weight: 500;">No breaks</span>
+                <small style="display: block; color: #64748b; margin-top: 2px;">⚠️ Higher risk of account restrictions</small>
+              </div>
+            </label>
+          </div>
+          <small style="color: #f59e0b; margin-top: 0.5rem; display: block;">💡 Breaks simulate human behavior and reduce detection risk</small>
+        </div>
+
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" onclick="closeBroadcastModal()">Cancel</button>
           <button type="submit" class="btn btn-success">Start Broadcast</button>

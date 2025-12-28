@@ -678,6 +678,10 @@ function handleBroadcastStatusUpdate(data) {
     document.getElementById('broadcastStatusMessage').textContent =
       `✅ Broadcast complete! ${data.sent} sent, ${data.failed} failed`;
     document.getElementById('closeProgressBtn').disabled = false;
+  } else if (data.status === 'on_break') {
+    const breakHours = data.break_duration_ms ? (data.break_duration_ms / 3600000).toFixed(1) : '?';
+    document.getElementById('broadcastStatusMessage').innerHTML =
+      `☕ <strong>Taking a break...</strong><br><small style="color: #64748b;">${data.break_reason || `Pausing for ${breakHours} hours to avoid detection`}</small>`;
   } else {
     document.getElementById('broadcastStatusMessage').textContent =
       `Sending messages... ${data.current_index}/${data.total}`;
@@ -752,6 +756,7 @@ async function handleBroadcastSubmit(e) {
 
   const message = document.getElementById('broadcastMessage').value;
   const delayMode = document.querySelector('input[name="delayMode"]:checked').value;
+  const breakMode = document.querySelector('input[name="breakMode"]:checked').value;
   const notificationContact = document.getElementById('notificationContact').value.trim();
   const imageFile = document.getElementById('broadcastImageFile').files[0];
 
@@ -785,6 +790,7 @@ async function handleBroadcastSubmit(e) {
         message,
         image_url: imageUrl,
         delay_mode: delayMode,
+        break_mode: breakMode,
         notification_contact: notificationContact || null
       })
     });

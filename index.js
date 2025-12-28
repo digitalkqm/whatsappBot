@@ -1703,6 +1703,54 @@ function getRandomDelay(delayMode) {
   return Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
 }
 
+// Helper function to get break duration based on break mode
+function getBreakConfig(breakMode) {
+  const configs = {
+    '40msg-2-3hr': { messageCount: 40, minMs: 7200000, maxMs: 10800000 }, // 40 msgs, 2-3 hours
+    '50msg-4-5hr': { messageCount: 50, minMs: 14400000, maxMs: 18000000 }, // 50 msgs, 4-5 hours
+    'none': null // No breaks
+  };
+  return configs[breakMode] || configs['40msg-2-3hr']; // Default to 40msg-2-3hr
+}
+
+// Helper function to get random break duration
+function getRandomBreakDuration(breakConfig) {
+  if (!breakConfig) return 0;
+  return Math.floor(Math.random() * (breakConfig.maxMs - breakConfig.minMs + 1)) + breakConfig.minMs;
+}
+
+// Helper function to simulate typing before sending message
+async function simulateTyping(client, chatId, messageLength) {
+  try {
+    const chat = await client.getChatById(chatId);
+    if (!chat) {
+      log('warn', `⚠️ Could not get chat for typing simulation: ${chatId}`);
+      return;
+    }
+
+    // Calculate typing duration: base 2-4 seconds + ~50ms per character (simulating ~20 WPM)
+    // Add randomness to make it more human-like
+    const baseDelay = Math.floor(Math.random() * 2000) + 2000; // 2-4 seconds base
+    const charDelay = Math.min(messageLength * 50, 8000); // Max 8 seconds for char delay
+    const randomVariation = Math.floor(Math.random() * 2000) - 1000; // ±1 second variation
+    const typingDuration = Math.max(2000, baseDelay + charDelay + randomVariation); // Minimum 2 seconds
+
+    log('debug', `⌨️ Simulating typing for ${Math.round(typingDuration / 1000)}s to ${chatId.substring(0, 15)}...`);
+
+    // Send typing state
+    await chat.sendStateTyping();
+
+    // Wait for typing duration with keep-alive
+    await sleepWithKeepAlive(typingDuration);
+
+    // Clear typing state (optional - it auto-clears when message is sent)
+    await chat.clearState();
+  } catch (error) {
+    log('warn', `⚠️ Typing simulation failed (non-critical): ${error.message}`);
+    // Don't throw - typing simulation failure shouldn't block message sending
+  }
+}
+
 // Helper function to sleep with keep-alive pings to prevent frame detachment
 // Pings every 30 seconds during long delays to keep the WhatsApp Web frame active
 async function sleepWithKeepAlive(ms) {
@@ -1728,7 +1776,7 @@ async function sleepWithKeepAlive(ms) {
 
 // Send interest rate broadcast to selected contacts
 app.post('/api/broadcast/interest-rate', async (req, res) => {
-  let { contacts, message, image_url, batch_size, delay_mode, notification_contact } = req.body;
+  let { contacts, message, image_url, batch_size, delay_mode, break_mode, notification_contact } = req.body;
 
   if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
     return res.status(400).json({ success: false, error: 'No contacts provided' });
@@ -1741,6 +1789,11 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
   // Validate delay_mode (default to 1-2min if not provided)
   if (!delay_mode || !['1-2min', '2-3min'].includes(delay_mode)) {
     delay_mode = '1-2min';
+  }
+
+  // Validate break_mode (default to 40msg-2-3hr if not provided)
+  if (!break_mode || !['40msg-2-3hr', '50msg-4-5hr', 'none'].includes(break_mode)) {
+    break_mode = '40msg-2-3hr';
   }
 
   try {
@@ -1760,6 +1813,7 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
         failed_count: 0,
         batch_size: batch_size || 1,
         delay_mode: delay_mode,
+        break_mode: break_mode,
         message_content: message,
         message_template: message,
         image_url: image_url || null,
@@ -1796,11 +1850,13 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
       let successCount = 0;
       let failedCount = 0;
       let lastSentContact = null; // Track the last successfully sent contact
+      const breakConfig = getBreakConfig(break_mode); // Get break configuration
+      let messagesSinceLastBreak = 0; // Track messages since last break
 
       try {
         log(
           'info',
-          `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay mode: ${delay_mode})`
+          `📢 Starting broadcast ${broadcastId} to ${contacts.length} contacts (delay: ${delay_mode}, break: ${break_mode})`
         );
 
         // Emit initial status via WebSocket
@@ -1839,6 +1895,11 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
               .update({ status: 'sending' })
               .eq('execution_id', execution.id)
               .eq('contact_id', contact.id);
+
+            // Simulate typing before sending (human-like behavior)
+            if (client) {
+              await simulateTyping(client, jid, personalizedMessage.length);
+            }
 
             // Send message via internal API with low priority (broadcasts are bulk operations)
             const response = await axios.post(
@@ -1914,9 +1975,43 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
             }
           });
 
+          // Increment messages since last break (only count successful sends)
+          if (messageStatus === 'sent') {
+            messagesSinceLastBreak++;
+          }
+
           // Wait between messages (except for last message) with random delay
           // Uses keep-alive pings to prevent frame detachment during long delays
           if (i < contacts.length - 1) {
+            // Check if we need a long break (based on break_mode)
+            if (breakConfig && messagesSinceLastBreak >= breakConfig.messageCount) {
+              const breakDuration = getRandomBreakDuration(breakConfig);
+              const breakHours = (breakDuration / 3600000).toFixed(1);
+              log('info', `☕ Taking a ${breakHours}hr break after ${messagesSinceLastBreak} messages (break mode: ${break_mode})`);
+
+              // Emit break status via WebSocket
+              broadcastToClients({
+                type: 'broadcast_status',
+                data: {
+                  broadcast_id: broadcastId,
+                  execution_id: execution.id,
+                  status: 'on_break',
+                  total: contacts.length,
+                  sent: successCount,
+                  failed: failedCount,
+                  current_index: i + 1,
+                  progress: progress,
+                  break_duration_ms: breakDuration,
+                  break_reason: `Taking ${breakHours}hr break after ${messagesSinceLastBreak} messages`
+                }
+              });
+
+              await sleepWithKeepAlive(breakDuration);
+              messagesSinceLastBreak = 0; // Reset counter after break
+              log('info', `✅ Break complete, resuming broadcast...`);
+            }
+
+            // Regular delay between messages
             const randomDelay = getRandomDelay(delay_mode);
             log('debug', `⏱️ Waiting ${Math.round(randomDelay / 1000)}s before next message`);
             await sleepWithKeepAlive(randomDelay);
@@ -2014,7 +2109,8 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
         broadcast_id: broadcastId,
         execution_id: execution.id,
         total: contacts.length,
-        delay_mode
+        delay_mode,
+        break_mode
       }
     });
   } catch (error) {
