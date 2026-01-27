@@ -224,7 +224,7 @@ class HumanBehaviorManager {
         return; // Don't send notification for cooldown
       }
 
-      await this.client.sendMessage(groupId, message);
+      await this.client.sendMessage(groupId, message, { sendSeen: false });
       log('info', `📨 Rate limit notification sent to group ${groupId} (reason: ${reason})`);
     } catch (err) {
       log('error', `Failed to send rate limit notification: ${err.message}`);
@@ -1104,7 +1104,7 @@ app.get('/workflows', (_, res) => {
 
 // Enhanced send message endpoint with human behavior
 app.post('/send-message', async (req, res) => {
-  const { jid, groupId, message, imageUrl, priority = 'normal' } = req.body;
+  const { jid, groupId, message, imageUrl, priority = 'normal', skipTyping = false } = req.body;
 
   // Support both jid and groupId parameters
   const targetId = jid || groupId;
@@ -1162,7 +1162,7 @@ app.post('/send-message', async (req, res) => {
 
     // Prepare message for queue
     let sentMessage;
-    let messageOptions = {};
+    let messageOptions = { skipTyping };
 
     // Prepare media if imageUrl provided
     if (imageUrl) {
@@ -1985,7 +1985,8 @@ app.post('/api/broadcast/interest-rate', async (req, res) => {
                 jid,
                 message: personalizedMessage,
                 imageUrl: image_url || null,
-                priority: 'low' // Low priority for broadcast messages
+                priority: 'low', // Low priority for broadcast messages
+                skipTyping: true // Already handled above with simulateTyping()
               }
             );
 

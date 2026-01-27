@@ -64,6 +64,50 @@ class MessageSendQueue {
   }
 
   /**
+   * Simulate typing before sending a message (human-like behavior)
+   * @param {string} chatId - The chat ID to show typing in
+   * @param {number} messageLength - Length of the message to calculate typing duration
+   * @param {string} priority - Message priority (affects typing duration)
+   */
+  async simulateTyping(chatId, messageLength, priority = 'normal') {
+    try {
+      // Skip typing simulation for critical messages (need to send fast)
+      if (priority === 'critical') {
+        return;
+      }
+
+      const chat = await this.client.getChatById(chatId);
+      if (!chat) {
+        console.warn(`⚠️ Could not get chat for typing simulation: ${chatId.substring(0, 15)}...`);
+        return;
+      }
+
+      // Calculate typing duration based on message length (~20 WPM typing speed)
+      // Base: 1-3 seconds + ~40ms per character (capped at 6 seconds for char delay)
+      // Priority affects duration: high = faster, low = slower (more human-like for bulk)
+      const priorityMultiplier = priority === 'high' ? 0.7 : priority === 'low' ? 1.3 : 1.0;
+      const baseDelay = Math.floor(Math.random() * 2000) + 1000; // 1-3 seconds base
+      const charDelay = Math.min(messageLength * 40, 6000); // Max 6 seconds for char delay
+      const randomVariation = Math.floor(Math.random() * 1000) - 500; // ±0.5 second variation
+      const typingDuration = Math.max(1500, Math.round((baseDelay + charDelay + randomVariation) * priorityMultiplier));
+
+      console.log(`⌨️ Typing for ${Math.round(typingDuration / 1000)}s to ${chatId.substring(0, 15)}...`);
+
+      // Send typing state
+      await chat.sendStateTyping();
+
+      // Wait for typing duration with periodic keep-alive
+      await this.sleepWithKeepAlive(typingDuration);
+
+      // Clear typing state
+      await chat.clearState();
+    } catch (error) {
+      // Non-critical - don't block message sending if typing fails
+      console.warn(`⚠️ Typing simulation failed (non-critical): ${error.message}`);
+    }
+  }
+
+  /**
    * Check if the frame is healthy before sending
    */
   async checkFrameHealth() {
@@ -193,17 +237,29 @@ class MessageSendQueue {
           `📨 Sending message [${item.priority}] to ${item.recipient.substring(0, 15)}... - ID: ${item.id}${item.retryCount > 0 ? ` (retry ${item.retryCount}/${item.maxRetries})` : ''}`
         );
 
+        // Simulate typing before sending (human-like behavior)
+        // Skip if: already handled externally (skipTyping), or on retry attempts
+        if (!item.options.skipTyping && item.retryCount === 0) {
+          const messageLength = item.options.media
+            ? (item.message || '').length  // Use caption length for media
+            : (item.message || '').length;
+          await this.simulateTyping(item.recipient, messageLength, item.priority);
+        }
+
         // Send message via WhatsApp client
         let result;
 
         if (item.options.media) {
           // Send with media
           result = await this.client.sendMessage(item.recipient, item.options.media, {
-            caption: item.message
+            caption: item.message,
+            sendSeen: false // Workaround for WhatsApp Web API change (markedUnread error)
           });
         } else {
           // Send text message
-          result = await this.client.sendMessage(item.recipient, item.message);
+          result = await this.client.sendMessage(item.recipient, item.message, {
+            sendSeen: false // Workaround for WhatsApp Web API change (markedUnread error)
+          });
         }
 
         // Update stats
