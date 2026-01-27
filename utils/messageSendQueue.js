@@ -249,17 +249,26 @@ class MessageSendQueue {
         // Send message via WhatsApp client
         let result;
 
+        // Log message content for debugging (truncated)
+        const msgPreview = item.options.media
+          ? `[MEDIA] ${(item.message || '').substring(0, 50)}...`
+          : (item.message || '').substring(0, 50) + (item.message?.length > 50 ? '...' : '');
+        console.log(`📝 Message content: "${msgPreview}"`);
+
         if (item.options.media) {
           // Send with media
           result = await this.client.sendMessage(item.recipient, item.options.media, {
-            caption: item.message,
-            sendSeen: false // Workaround for WhatsApp Web API change (markedUnread error)
+            caption: item.message
           });
         } else {
           // Send text message
-          result = await this.client.sendMessage(item.recipient, item.message, {
-            sendSeen: false // Workaround for WhatsApp Web API change (markedUnread error)
-          });
+          result = await this.client.sendMessage(item.recipient, item.message);
+        }
+
+        // Validate result - ensure message was actually sent
+        const messageId = result?.id?._serialized || result?.id?.id || result?.id;
+        if (!messageId) {
+          throw new Error('Message sent but no message ID returned - delivery uncertain');
         }
 
         // Update stats
@@ -267,7 +276,7 @@ class MessageSendQueue {
         this.stats.byPriority[item.priority].sent++;
         this.consecutiveFrameErrors = 0; // Reset on success
 
-        console.log(`✅ Message sent [${item.priority}] - ID: ${item.id}`);
+        console.log(`✅ Message sent [${item.priority}] - ID: ${item.id} - WhatsApp ID: ${messageId}`);
 
         // Resolve promise
         item.resolve(result);

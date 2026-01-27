@@ -224,7 +224,7 @@ class HumanBehaviorManager {
         return; // Don't send notification for cooldown
       }
 
-      await this.client.sendMessage(groupId, message, { sendSeen: false });
+      await this.client.sendMessage(groupId, message);
       log('info', `📨 Rate limit notification sent to group ${groupId} (reason: ${reason})`);
     } catch (err) {
       log('error', `Failed to send rate limit notification: ${err.message}`);
