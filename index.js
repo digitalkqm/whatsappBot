@@ -2549,7 +2549,7 @@ const server = app.listen(PORT, () => {
 // WebSocket server for real-time updates
 const wss = new WebSocket.Server({ server });
 
-wss.on('connection', ws => {
+wss.on('connection', async ws => {
   log('info', '📡 New WebSocket client connected');
   wsClients.add(ws);
 
@@ -2561,14 +2561,30 @@ wss.on('connection', ws => {
     })
   );
 
-  // Send current QR code if available
+  // Send current authentication state
   if (currentQRCode) {
+    // QR code is available - send it
     ws.send(JSON.stringify({
       type: 'qr',
       qr: currentQRCode,
       generatedAt: qrGeneratedAt,
       timestamp: Date.now()
     }));
+  } else if (client) {
+    // No QR code - check if already authenticated
+    try {
+      const state = await client.getState();
+      if (state === 'CONNECTED') {
+        log('info', '📡 Sending ready state to newly connected WebSocket client');
+        ws.send(JSON.stringify({
+          type: 'ready',
+          authenticated: true,
+          timestamp: Date.now()
+        }));
+      }
+    } catch (err) {
+      log('warn', `Could not get client state for new WebSocket: ${err.message}`);
+    }
   }
 
   ws.on('close', () => {
