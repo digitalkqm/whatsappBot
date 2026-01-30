@@ -505,6 +505,7 @@ const log = (level, message, ...args) => {
 // Global QR code storage for dashboard
 let currentQRCode = null;
 let qrGeneratedAt = null; // Timestamp when QR was generated
+let isClientAuthenticated = false; // Track authentication state to prevent spurious QR events
 
 // --- Session Management ---
 // Using LocalAuth with persistent disk storage on Render
@@ -665,6 +666,12 @@ function setupClientEvents(c) {
   });
 
   c.on('qr', async qr => {
+    // Skip QR event if already authenticated (prevents spurious QR events after ready)
+    if (isClientAuthenticated) {
+      log('debug', '📱 Ignoring QR event - client already authenticated');
+      return;
+    }
+
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}`;
     log('warn', `📱 Scan QR Code: ${qrUrl}`);
 
@@ -694,9 +701,16 @@ function setupClientEvents(c) {
   });
 
   c.on('ready', async () => {
+    // Guard against duplicate ready events
+    if (isClientAuthenticated) {
+      log('debug', '✅ Ignoring duplicate ready event - already authenticated');
+      return;
+    }
+
     log('info', '✅ WhatsApp client is ready.');
     currentQRCode = null; // Clear QR code when authenticated
     qrGeneratedAt = null;
+    isClientAuthenticated = true; // Mark as authenticated
 
     // Set client reference for human behavior notifications
     humanBehavior.client = c;
@@ -720,6 +734,7 @@ function setupClientEvents(c) {
 
   c.on('disconnected', async reason => {
     log('warn', `Client disconnected: ${reason}`);
+    isClientAuthenticated = false; // Reset authentication state
 
     // Clean up client
     if (client) {
@@ -760,6 +775,7 @@ function setupClientEvents(c) {
 
   c.on('auth_failure', async () => {
     log('error', '❌ Auth failed. Clearing session.');
+    isClientAuthenticated = false; // Reset authentication state
     try {
       // Clear LocalAuth session directory
       const sessionPath = path.join(__dirname, `.wwebjs_auth/session-${SESSION_ID}`);
@@ -1243,11 +1259,13 @@ app.post('/logout', async (req, res) => {
         log('info', '2️⃣ Destroying WhatsApp client...');
         await client.destroy();
         client = null;
+        isClientAuthenticated = false; // Reset authentication state
         cleanupResults.clientDestroy = true;
         log('info', '✅ Client destroyed successfully');
       } catch (destroyErr) {
         log('error', `❌ Client destroy failed: ${destroyErr.message}`);
         client = null; // Force null even if destroy fails
+        isClientAuthenticated = false; // Reset authentication state
       }
     } else {
       log('warn', '⚠️ No active client to logout');
