@@ -506,6 +506,7 @@ const log = (level, message, ...args) => {
 let currentQRCode = null;
 let qrGeneratedAt = null; // Timestamp when QR was generated
 let isClientAuthenticated = false; // Track authentication state to prevent spurious QR events
+let clientReadyAt = null; // Timestamp when client became ready - for robust event deduplication
 
 // --- Session Management ---
 // Using LocalAuth with persistent disk storage on Render
@@ -628,14 +629,9 @@ function createWhatsAppClient() {
         // This is set globally at the top of the file, so whatsapp-web.js will use it
       },
       qrTimeout: 90000,
-      restartOnAuthFail: true,
-
-      // Use stable WhatsApp Web version to avoid breaking changes
-      webVersionCache: {
-        type: 'remote',
-        remotePath:
-          'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
-      }
+      restartOnAuthFail: true
+      // Removed webVersionCache - let whatsapp-web.js use its default version
+      // The hardcoded version 2.2412.54 was causing authentication issues
     });
   } catch (err) {
     log('error', `Failed to create WhatsApp client: ${err.message}`);
@@ -667,8 +663,10 @@ function setupClientEvents(c) {
 
   c.on('qr', async qr => {
     // Skip QR event if already authenticated (prevents spurious QR events after ready)
-    if (isClientAuthenticated) {
-      log('debug', '📱 Ignoring QR event - client already authenticated');
+    // Use both flag AND timestamp for robust checking
+    if (isClientAuthenticated || clientReadyAt) {
+      const readyAgo = clientReadyAt ? `${Math.round((Date.now() - clientReadyAt) / 1000)}s ago` : 'N/A';
+      log('debug', `📱 Ignoring spurious QR event - client already ready (ready at: ${readyAgo})`);
       return;
     }
 
@@ -701,16 +699,22 @@ function setupClientEvents(c) {
   });
 
   c.on('ready', async () => {
-    // Guard against duplicate ready events
-    if (isClientAuthenticated) {
-      log('debug', '✅ Ignoring duplicate ready event - already authenticated');
+    // Guard against duplicate ready events using both flag AND timestamp
+    // This prevents rapid-fire duplicate events that can occur with whatsapp-web.js
+    const now = Date.now();
+    if (isClientAuthenticated || (clientReadyAt && (now - clientReadyAt) < 30000)) {
+      const readyAgo = clientReadyAt ? `${Math.round((now - clientReadyAt) / 1000)}s ago` : 'N/A';
+      log('debug', `✅ Ignoring duplicate ready event - already ready (first ready: ${readyAgo})`);
       return;
     }
+
+    // Set timestamp FIRST to prevent race conditions with duplicate events
+    clientReadyAt = now;
+    isClientAuthenticated = true; // Mark as authenticated
 
     log('info', '✅ WhatsApp client is ready.');
     currentQRCode = null; // Clear QR code when authenticated
     qrGeneratedAt = null;
-    isClientAuthenticated = true; // Mark as authenticated
 
     // Set client reference for human behavior notifications
     humanBehavior.client = c;
@@ -735,6 +739,7 @@ function setupClientEvents(c) {
   c.on('disconnected', async reason => {
     log('warn', `Client disconnected: ${reason}`);
     isClientAuthenticated = false; // Reset authentication state
+    clientReadyAt = null; // Reset ready timestamp
 
     // Clean up client
     if (client) {
@@ -776,6 +781,7 @@ function setupClientEvents(c) {
   c.on('auth_failure', async () => {
     log('error', '❌ Auth failed. Clearing session.');
     isClientAuthenticated = false; // Reset authentication state
+    clientReadyAt = null; // Reset ready timestamp
     try {
       // Clear LocalAuth session directory
       const sessionPath = path.join(__dirname, `.wwebjs_auth/session-${SESSION_ID}`);
@@ -1260,12 +1266,14 @@ app.post('/logout', async (req, res) => {
         await client.destroy();
         client = null;
         isClientAuthenticated = false; // Reset authentication state
+        clientReadyAt = null; // Reset ready timestamp
         cleanupResults.clientDestroy = true;
         log('info', '✅ Client destroyed successfully');
       } catch (destroyErr) {
         log('error', `❌ Client destroy failed: ${destroyErr.message}`);
         client = null; // Force null even if destroy fails
         isClientAuthenticated = false; // Reset authentication state
+        clientReadyAt = null; // Reset ready timestamp
       }
     } else {
       log('warn', '⚠️ No active client to logout');
