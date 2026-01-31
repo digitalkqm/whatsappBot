@@ -13,9 +13,19 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Lazy initialization to ensure env vars are loaded
+let supabase = null;
+function getSupabase() {
+  if (!supabase) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be set');
+    }
+    supabase = createClient(supabaseUrl, supabaseKey);
+  }
+  return supabase;
+}
 
 /**
  * Parse "Valuation Request:" template
@@ -167,7 +177,7 @@ async function routeToBankers(bankerNameRequested) {
   console.log(`📋 Parsed ${requestedNames.length} banker(s):`, requestedNames);
 
   // Find banker by routing keywords (ordered by creation date only)
-  const { data: bankers, error } = await supabase
+  const { data: bankers, error } = await getSupabase()
     .from('bankers')
     .select('*')
     .eq('is_active', true)
@@ -312,7 +322,7 @@ async function valuationRequestWorkflow(payload, engine) {
     console.log(`\n📌 Processing banker: ${banker.name} (${banker.bank_name})`);
 
     // Save to Supabase
-    const { data: savedValuation, error: saveError } = await supabase
+    const { data: savedValuation, error: saveError } = await getSupabase()
       .from('valuation_requests')
       .insert({
         // Original request tracking
@@ -369,7 +379,7 @@ async function valuationRequestWorkflow(payload, engine) {
       console.log(`✅ Forward message ID:`, sentMessage.id._serialized);
 
       // Update with forward tracking (keep status as 'pending' until banker replies)
-      const { error: updateError } = await supabase
+      const { error: updateError } = await getSupabase()
         .from('valuation_requests')
         .update({
           forwarded_to_banker: true,
@@ -408,7 +418,7 @@ async function valuationRequestWorkflow(payload, engine) {
     // Update acknowledgment tracking for all saved valuations
     if (savedValuations.length > 0) {
       const valuationIds = savedValuations.map(v => v.id);
-      await supabase
+      await getSupabase()
         .from('valuation_requests')
         .update({
           acknowledgment_sent: true

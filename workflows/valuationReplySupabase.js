@@ -14,9 +14,19 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Lazy initialization to ensure env vars are loaded
+let supabase = null;
+function getSupabase() {
+  if (!supabase) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be set');
+    }
+    supabase = createClient(supabaseUrl, supabaseKey);
+  }
+  return supabase;
+}
 
 /**
  * Format reply to requester group (with "From Banker" header)
@@ -74,7 +84,7 @@ async function valuationReplyWorkflow(payload, engine) {
   console.log('✅ Quoted message ID:', quotedMessageId);
 
   // Find original valuation via forward_message_id
-  const { data: valuation, error: fetchError } = await supabase
+  const { data: valuation, error: fetchError } = await getSupabase()
     .from('valuation_requests')
     .select('*')
     .eq('forward_message_id', quotedMessageId)
@@ -87,7 +97,7 @@ async function valuationReplyWorkflow(payload, engine) {
     console.log('🔍 Searching with group ID:', groupId);
 
     // Debug: Check if there are any valuations for this group
-    const { data: allValuations, error: debugError } = await supabase
+    const { data: allValuations, error: debugError } = await getSupabase()
       .from('valuation_requests')
       .select('id, forward_message_id, target_group_id, status')
       .eq('target_group_id', groupId)
@@ -102,14 +112,14 @@ async function valuationReplyWorkflow(payload, engine) {
   console.log('✅ Found original valuation:', valuation.id);
 
   // Get banker info for "From Banker" header
-  const { data: banker } = await supabase
+  const { data: banker } = await getSupabase()
     .from('bankers')
     .select('*')
     .eq('id', valuation.banker_id)
     .single();
 
   // Update database with banker reply (status remains 'pending', tracked via timestamps)
-  const { error: updateError } = await supabase
+  const { error: updateError } = await getSupabase()
     .from('valuation_requests')
     .update({
       banker_reply_message_id: messageId,
@@ -203,7 +213,7 @@ async function valuationReplyWorkflow(payload, engine) {
     updateData.completed_at = new Date().toISOString();
   }
 
-  await supabase.from('valuation_requests').update(updateData).eq('id', valuation.id);
+  await getSupabase().from('valuation_requests').update(updateData).eq('id', valuation.id);
 
   if (isQuestion) {
     console.log(
