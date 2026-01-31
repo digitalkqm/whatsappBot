@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "node --expose-gc --max-old-space-size=256 index.js",
+    "start:vps": "node --expose-gc --max-old-space-size=512 index.js",
     "dev": "node --expose-gc index.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop whatsapp-bot",
+    "pm2:restart": "pm2 restart whatsapp-bot",
+    "pm2:logs": "pm2 logs whatsapp-bot",
     "check-updates": "npm outdated",
     "check-whatsapp": "npm view whatsapp-web.js version && npm list whatsapp-web.js --depth=0",
     "audit": "npm audit --production",
@@ -19,6 +24,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.81.1",
     "axios": "^1.13.2",
+    "dotenv": "^16.4.5",
     "express": "^5.1.0",
     "imagekit": "^6.0.0",
     "multer": "^2.0.2",

@@ -1,3 +1,6 @@
+// Load environment variables FIRST before any other code
+require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
